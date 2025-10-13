@@ -1381,7 +1381,7 @@ class SystemMilcaModel:
         >> con esto se puede hacer soportes inclinados y obtener resultados en el eje local del NODO
         Args:
             node_id (int): Identificador del nodo.
-            angle (float): Ángulo del eje local en grados.
+            angle (float): Ángulo del eje local en radianes.
 
         Raises:
             ValueError: Si no existe el nodo.

@@ -233,10 +233,8 @@ class LinearStaticAnalysis:
         model: "SystemMilcaModel"
     ) -> np.ndarray:
         """
-        Aplica las transformaciones locales de cada nodo a la matriz de rigidez global K.
+        Aplica las transformaciones locales de cada nodo a la matriz de rigidez global K. (nota: aplicar nodo por nodo)
         """
-        nn = len(model.nodes)
-        ndof = nn * 3
         Kold = K.copy()
         Knew = Kold.copy()
 
@@ -246,11 +244,12 @@ class LinearStaticAnalysis:
 
             dofs = node.dofs - 1  # índices base 0
             T = node.local_axis.get_transformation_matrix()
+            kij = Kold[np.ix_(dofs, dofs)]
 
             # fila
-            for nodej in model.nodes.values():
-                dofj = nodej.dofs - 1
-                Knew[np.ix_(dofs, dofj)] = T.T @ Kold[np.ix_(dofs, dofj)]
+            for nodei in model.nodes.values():
+                dofi = nodei.dofs - 1
+                Knew[np.ix_(dofs, dofi)] = T.T @ Kold[np.ix_(dofs, dofi)]
 
             # columna
             for nodej in model.nodes.values():
@@ -258,7 +257,11 @@ class LinearStaticAnalysis:
                 Knew[np.ix_(dofj, dofs)] = Kold[np.ix_(dofj, dofs)] @ T
 
             # diagonal
-            Knew[np.ix_(dofs, dofs)] = T.T @ Kold[np.ix_(dofs, dofs)] @ T
+            Knew[np.ix_(dofs, dofs)] = T.T @ kij @ T
+            # Knew[np.ix_(dofs, dofs)] = T.T @ Kold[np.ix_(dofs, dofs)] @ T
+
+            Kold = Knew.copy()
+            Knew = Kold.copy()
 
         return Knew
 

@@ -16,7 +16,6 @@ milcapy/elements/CST.py
 milcapy/elements/MQ6.py
 milcapy/elements/MQ6I.py
 milcapy/elements/MQ6IMod.py
-milcapy/elements/MQ6I__.py
 milcapy/elements/__init__.py
 milcapy/elements/member.py
 milcapy/elements/quad4.py

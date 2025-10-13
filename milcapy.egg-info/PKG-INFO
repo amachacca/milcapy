@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: milcapy
-Version: 0.2.5
+Version: 0.2.6
 Summary: Librería para el análisis de estructuras 2D (Frame, Truss, CST, Membrana: Q4, Q8, Q6, Q6i).
 Author-email: Amilcar Machacca Mayo <200190@unsaac.edu.pe>
 License: MIT
