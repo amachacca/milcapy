@@ -39,5 +39,4 @@ portico.add_point_load(2, "Live Load", F1, 0, 0, "GLOBAL")
 portico.add_point_load(3, "Live Load", Peq, 0, Meq, "GLOBAL")
 portico.postprocessing_options.n = 100
 portico.solve()
-# portico.show()
-portico.plot_model('Live Load')
+portico.show()

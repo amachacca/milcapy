@@ -24,10 +24,10 @@ class PlotterOptions:        # ✅✅✅
         self.figure_size = (10, 8)      ##
         self.dpi = 100                  ### ✅✅✅
         self.save_fig_dpi = 400         ### ✅✅✅
-        self.UI_background_color = 'white' ### ✅✅✅
+        self.UI_background_color = 'none' ### ✅✅✅
         self.grid = False                ##
         # 'default', 'dark_background', 'ggplot', etc.
-        self.plot_style = 'default'     ##
+        self.plot_style = 'ggplot'     ##
 
         # Opciones para visualización de estructura
         # NODOS:
