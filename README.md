@@ -1,8 +1,21 @@
-# Milca Structures
----
+<div align="center" style="padding-top:20px; padding-bottom:10px;">
+  <img src="docs/assets/logo.png" alt="milcapy logo" width="140">
+</div>
 
-## milcapy
-## <img src="assets/logo.png" alt="Logo" width="100" height="100">
+<h1>milcapy</h1>
+
+[![PyPI](https://img.shields.io/pypi/v/milcapy.svg?color=blue)](https://pypi.org/project/milcapy/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/milcapy.svg)](https://pypi.org/project/milcapy/#history)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/amachacca/milcapy/blob/main/LICENSE)
+[![Docs](https://img.shields.io/badge/docs-latest-blue.svg)](https://amachacca.github.io/milcapy/)
+[![Source Code](https://img.shields.io/badge/source-GitHub-black.svg)](https://github.com/amachacca/milcapy/tree/main)
+[![Examples](https://img.shields.io/badge/examples-available-purple.svg)](https://github.com/amachacca/milcapy/tree/main/examples)
+
+
+
+
+
+
 Biblioteca para el análisis estructural de **marcos en 2D**, con soporte para elementos:
 - **CST(constant strain triangle)**
 - **Q4(quadrilateral 4 nodos & 2dof por nodo)**
@@ -14,8 +27,8 @@ Implementa el **método de rigidez directa** y el **método de los elementos fin
 Además, incorpora conceptos avanzados de **análisis matricial de estructuras**.
 
 Desarrollado por **Amilcar Machacca Mayo**  
-GitHub: [Milca-py](https://github.com/Milca-py)  
-Repositorio: [MilcaStructures](https://github.com/Milca-py/MilcaStructures)
+GitHub: [amachacca](https://github.com/amachacca)  
+Repositorio: [milcapy](https://github.com/amachacca/milcapy)
 
 ---
 
@@ -64,8 +77,9 @@ Repositorio: [MilcaStructures](https://github.com/Milca-py/MilcaStructures)
 ### Estudio de convergencia para elementos finitos:
 ina viga en voladizo de 2m de longitud, sección rectangular de 0.6m de altura y 0.4m de base, materiales con E=2e6 y v=0.2 y una fuerza aplicada en el extremos libre de -20tonf.
 
-![Resultados](assets/convergencia_membranas.png)
-
+<div align="center">
+  <img src="docs/assets/convergencia_membranas.png" alt="Resultados" width="90%">
+</div>
 
 
 
@@ -677,40 +691,59 @@ model_viewer(model)
 ```
 
 #### model_viewer
+
 ##### modelo
-![Resultados](assets/modelo.png)
+<p align="center">
+  <img src="docs/assets/modelo.png" alt="modelo" width="800">
+</p>
 
 ##### deformada
-![Resultados](assets/deformada.png)
+<p align="center">
+  <img src="docs/assets/deformada.png" alt="deformada" width="800">
+</p>
 
-##### deformada rigida
-![Resultados](assets/deformada_rigida.png)
+##### deformada rígida
+<p align="center">
+  <img src="docs/assets/deformada_rigida.png" alt="deformada rígida" width="800">
+</p>
 
 ##### reacciones
-![Resultados](assets/reacciones.png)
+<p align="center">
+  <img src="docs/assets/reacciones.png" alt="reacciones" width="800">
+</p>
 
 ##### Diagramas de fuerzas axiales
-![Resultados](assets/diag_axiales.png)
+<p align="center">
+  <img src="docs/assets/diag_axiales.png" alt="axiales" width="800">
+</p>
 
 ##### Diagramas de fuerzas cortantes
-![Resultados](assets/diag_cortantes.png)
+<p align="center">
+  <img src="docs/assets/diag_cortantes.png" alt="cortantes" width="800">
+</p>
 
-##### Diagramas de fuerzas cortantes
-![Resultados](assets/diag_momentos.png)
+##### Diagramas de momentos flectores
+<p align="center">
+  <img src="docs/assets/diag_momentos.png" alt="momentos" width="800">
+</p>
 
 
-### Otros ejemplos
-![Resultados](assets/img/%20(21).png)
-![Resultados](assets/img/%20(6).png)
-![Resultados](assets/img/%20(4).png)
-![Resultados](assets/img/%20(2).png)
-![Resultados](assets/img/%20(5).png)
-![Resultados](assets/img/%20(3).png)
-![Resultados](assets/img/%20(8).png)
-![Resultados](assets/img/%20(1).png)
-![Resultados](assets/img/%20(11).png)
-![Resultados](assets/img/%20(14).png)
-![Resultados](assets/img/%20(15).png)
-![Resultados](assets/img/%20(19).png)
-![Resultados](assets/img/%20(16).png)
-![Resultados](assets/img/%20(18).png)
+
+<h3 style="text-align:center;">Otros ejemplos</h3>
+
+<p align="center">
+  <img src="docs/assets/img/%20(21).png" alt="Resultados" width="700"><br>
+  <img src="docs/assets/img/%20(6).png" alt="Resultados"  width="700"><br>
+  <img src="docs/assets/img/%20(4).png" alt="Resultados"  width="700"><br>
+  <img src="docs/assets/img/%20(2).png" alt="Resultados"  width="700"><br>
+  <img src="docs/assets/img/%20(5).png" alt="Resultados"  width="700"><br>
+  <img src="docs/assets/img/%20(3).png" alt="Resultados"  width="700"><br>
+  <img src="docs/assets/img/%20(8).png" alt="Resultados"  width="700"><br>
+  <img src="docs/assets/img/%20(1).png" alt="Resultados"  width="700"><br>
+  <img src="docs/assets/img/%20(11).png" alt="Resultados" width="700"><br>
+  <img src="docs/assets/img/%20(14).png" alt="Resultados" width="700"><br>
+  <img src="docs/assets/img/%20(15).png" alt="Resultados" width="700"><br>
+  <img src="docs/assets/img/%20(19).png" alt="Resultados" width="700"><br>
+  <img src="docs/assets/img/%20(16).png" alt="Resultados" width="700"><br>
+  <img src="docs/assets/img/%20(18).png" alt="Resultados" width="700">
+</p>

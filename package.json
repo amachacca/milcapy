@@ -1,0 +1,22 @@
+{
+    "name": "milca-structures-docs",
+    "version": "1.0.0",
+    "description": "Documentation site generator for MilcaStructures",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "lucide-react": "^0.294.0",
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0"
+    },
+    "devDependencies": {
+        "@types/react": "^18.2.43",
+        "@types/react-dom": "^18.2.17",
+        "typescript": "^5.3.3"
+    }
+}

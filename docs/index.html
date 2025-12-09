@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Milca Structures - Documentación</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+</head>
+
+<body>
+    <div class="layout">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <img src="assets/logo.png" alt="Milca Structures" onerror="this.style.display='none'">
+                    <h1>Milca Structures</h1>
+                </div>
+                <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#inicio" class="nav-link active">Inicio</a>
+                <a href="#instalacion" class="nav-link">Instalación</a>
+                <a href="#importacion" class="nav-link">Importación</a>
+                <a href="#caracteristicas" class="nav-link">Características</a>
+                <a href="#comandos" class="nav-link">Comandos</a>
+                <div class="nav-section">
+                    <a href="#modelo" class="nav-link indent">1. Modelo</a>
+                    <a href="#material" class="nav-link indent">2. Material</a>
+                    <a href="#seccion" class="nav-link indent">3. Sección</a>
+                    <a href="#nodo" class="nav-link indent">4. Nodo</a>
+                    <a href="#marco" class="nav-link indent">5. Marco</a>
+                    <a href="#armadura" class="nav-link indent">6. Armadura</a>
+                    <a href="#membrana" class="nav-link indent">7. Membrana</a>
+                    <a href="#patron-carga" class="nav-link indent">8. Patrón de Carga</a>
+                    <a href="#asignacion" class="nav-link indent">9. Asignación</a>
+                    <a href="#analisis" class="nav-link indent">10. Análisis</a>
+                    <a href="#postproceso" class="nav-link indent">11. Postproceso</a>
+                    <a href="#resultados" class="nav-link indent">12. Resultados</a>
+                </div>
+                <a href="#ejemplo" class="nav-link">Ejemplo de Uso</a>
+                <a href="#galeria" class="nav-link">Galería</a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="content-wrapper">
+                <!-- Hero Section -->
+                <section id="inicio" class="hero">
+                    <h1>milcapy</h1>
+                    <p class="subtitle">Biblioteca para el análisis estructural de marcos en 2D</p>
+                    <div class="hero-badges">
+                        <span class="badge">Python</span>
+                        <span class="badge">Análisis Estructural</span>
+                        <span class="badge">Elementos Finitos</span>
+                    </div>
+                    <div class="hero-actions">
+                        <a href="https://github.com/Milca-py/MilcaStructures" class="btn btn-primary" target="_blank">
+                            Ver en GitHub
+                        </a>
+                        <a href="#instalacion" class="btn btn-secondary">Comenzar</a>
+                    </div>
+                </section>
+
+                <!-- Introducción -->
+                <section class="section">
+                    <p>Biblioteca para el análisis estructural de <strong>marcos en 2D</strong>, con soporte para
+                        elementos:</p>
+                    <ul>
+                        <li><strong>CST</strong> (Constant Strain Triangle)</li>
+                        <li><strong>Q4</strong> (Quadrilateral 4 nodos & 2dof por nodo)</li>
+                        <li><strong>Q6</strong> (Quadrilateral 4 nodos & 3dof por nodo)</li>
+                        <li><strong>Q6i</strong> (Rectangular 4 nodos & 2dof por nodo + modos incompatibles)</li>
+                        <li><strong>Q8</strong> (Quadrilateral 8 nodos & 2dof por nodo)</li>
+                    </ul>
+                    <p>Implementa el <strong>método de rigidez directa</strong> y el <strong>método de los elementos
+                            finitos</strong> para membranas, con <strong>solución cerrada</strong> en elementos
+                        unidimensionales (1D: marcos y armaduras).</p>
+                    <div class="info-box">
+                        <strong>Desarrollado por:</strong> Amilcar Machacca Mayo<br>
+                        <strong>GitHub:</strong> <a href="https://github.com/Milca-py" target="_blank">Milca-py</a><br>
+                        <strong>Repositorio:</strong> <a href="https://github.com/Milca-py/MilcaStructures"
+                            target="_blank">MilcaStructures</a>
+                    </div>
+                </section>
+
+                <!-- Características -->
+                <section id="caracteristicas" class="section">
+                    <h2>Características principales</h2>
+                    <div class="features-grid">
+                        <div class="feature-card">
+                            <h3>Materiales</h3>
+                            <p>Definición de materiales con propiedades elásticas</p>
+                        </div>
+                        <div class="feature-card">
+                            <h3>Secciones</h3>
+                            <p>Rectangulares, circulares, genéricas y tipo cáscara</p>
+                        </div>
+                        <div class="feature-card">
+                            <h3>Elementos</h3>
+                            <p>Vigas, armaduras y membranas con diversas formulaciones</p>
+                        </div>
+                        <div class="feature-card">
+                            <h3>Cargas</h3>
+                            <p>Nodales, distribuidas y peso propio</p>
+                        </div>
+                        <div class="feature-card">
+                            <h3>Condiciones de frontera</h3>
+                            <p>Restricciones y apoyos elásticos</p>
+                        </div>
+                        <div class="feature-card">
+                            <h3>Visualización</h3>
+                            <p>Interfaz interactiva para el modelo</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Convergencia -->
+                <section class="section">
+                    <h3>Estudio de convergencia</h3>
+                    <p>Una viga en voladizo de 2m de longitud, sección rectangular de 0.6m de altura y 0.4m de base,
+                        materiales con E=2e6 y v=0.2 y una fuerza aplicada en el extremo libre de -20tonf.</p>
+                    <div class="image-container">
+                        <img src="assets/convergencia_membranas.png" alt="Convergencia de membranas"
+                            onerror="this.src='https://via.placeholder.com/800x400?text=Convergencia+de+Membranas'">
+                    </div>
+                </section>
+
+                <!-- Instalación -->
+                <section id="instalacion" class="section">
+                    <h2>Instalación</h2>
+                    <pre><code class="language-bash">pip install milcapy</code></pre>
+                </section>
+
+                <!-- Importación -->
+                <section id="importacion" class="section">
+                    <h2>Comandos de importación</h2>
+                    <pre><code class="language-python">from milcapy import (
+    SystemModel,
+    model_viewer,
+    BeamTheoriesType,
+    CoordinateSystemType,
+    DirectionType,
+    StateType,
+    LoadType,
+    FieldType,
+    ConstitutiveModelType,
+    IntegrationType,
+)</code></pre>
+                </section>
+
+                <!-- Comandos -->
+                <section id="comandos" class="section">
+                    <h2>Comandos</h2>
+
+                    <div id="modelo" class="subsection">
+                        <h3>1. Comandos de modelo</h3>
+                        <pre><code class="language-python">model = SystemModel()</code></pre>
+                    </div>
+
+                    <div id="material" class="subsection">
+                        <h3>2. Comando de material</h3>
+                        <pre><code class="language-python">model.add_material('name', 'modulus_elasticity', 'poisson_ratio', 'specific_weight=0')</code></pre>
+                        <div class="params">
+                            <p><strong>Parámetros:</strong></p>
+                            <ul>
+                                <li><code>name</code> (str) → Nombre del material</li>
+                                <li><code>modulus_elasticity</code> (float) → Módulo de elasticidad</li>
+                                <li><code>poisson_ratio</code> (float) → Coeficiente de Poisson</li>
+                                <li><code>specific_weight</code> (float) → Peso específico (opcional)</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div id="seccion" class="subsection">
+                        <h3>3. Comando de sección</h3>
+
+                        <h4>3.1. Sección rectangular</h4>
+                        <pre><code class="language-python">model.add_rectangular_section('name', 'material_name', 'base', 'height')</code></pre>
+
+                        <h4>3.2. Sección circular</h4>
+                        <pre><code class="language-python">model.add_circular_section('name', 'material_name', 'diameter')</code></pre>
+
+                        <h4>3.3. Sección genérica</h4>
+                        <pre><code class="language-python">model.add_generic_section('name', 'material_name', 'area', 'inertia', 'k_factor')</code></pre>
+
+                        <h4>3.4. Sección de cáscaras</h4>
+                        <pre><code class="language-python">model.add_shell_section('name', 'material_name', 'thickness')</code></pre>
+                        <div class="note">
+                            <strong>Nota:</strong> Este tipo de sección se usa para modelar elementos planos (membranas)
+                        </div>
+                    </div>
+
+                    <div id="nodo" class="subsection">
+                        <h3>4. Comando de nodo</h3>
+                        <pre><code class="language-python">model.add_node('id', 'x', 'y')</code></pre>
+                        <div class="warning">
+                            <strong>⚠️ NOTA IMPORTANTE:</strong> Los ID's deben ser ordenados y secuenciales (1, 2, 3,
+                            ...)
+                        </div>
+                    </div>
+
+                    <div id="marco" class="subsection">
+                        <h3>5. Comando de elemento marco</h3>
+
+                        <h4>5.1. Marco con teorías de viga</h4>
+                        <pre><code class="language-python">model.add_member('id', 'node_i_id', 'node_j_id', 'section_name', 'beam_theory=BeamTheoriesType.TIMOSHENKO')</code></pre>
+
+                        <h4>5.2. Viga de Timoshenko</h4>
+                        <pre><code class="language-python">model.add_elastic_timoshenko_beam('id', 'node_i_id', 'node_j_id', 'section_name')</code></pre>
+
+                        <h4>5.3. Viga de Euler-Bernoulli</h4>
+                        <pre><code class="language-python">model.add_elastic_euler_bernoulli_beam('id', 'node_i_id', 'node_j_id', 'section_name')</code></pre>
+                    </div>
+
+                    <div id="armadura" class="subsection">
+                        <h3>6. Comando de elemento de armadura</h3>
+                        <pre><code class="language-python">model.add_truss('id', 'node_i_id', 'node_j_id', 'section_name')</code></pre>
+                    </div>
+
+                    <div id="membrana" class="subsection">
+                        <h3>7. Comando de elemento de membrana</h3>
+
+                        <h4>7.1. Elemento CST</h4>
+                        <pre><code class="language-python">model.add_cst('id', 'node_ids', 'section_name', 'state=ConstitutiveModel.PLANE_STRESS')</code></pre>
+
+                        <h4>7.2. Elemento Q4</h4>
+                        <pre><code class="language-python">model.add_membrane_q4('id', '*node_ids', 'section_name', 'state=ConstitutiveModel.PLANE_STRESS')</code></pre>
+
+                        <h4>7.3. Elemento Q6</h4>
+                        <pre><code class="language-python">model.add_membrane_q6('id', '*node_ids', 'section_name', 'state=ConstitutiveModel.PLANE_STRESS')</code></pre>
+
+                        <h4>7.4. Elemento Q6I</h4>
+                        <pre><code class="language-python">model.add_membrane_q6i('id', '*node_ids', 'section_name', 'state=ConstitutiveModel.PLANE_STRESS')</code></pre>
+
+                        <h4>7.5. Elemento Q8</h4>
+                        <pre><code class="language-python">model.add_membrane_q8('id', '*node_ids', 'section_name', 'state=ConstitutiveModel.PLANE_STRESS', 'integration=IntegrationType.COMPLETE')</code></pre>
+                    </div>
+
+                    <div id="patron-carga" class="subsection">
+                        <h3>8. Comando de patrón de carga</h3>
+                        <pre><code class="language-python">model.add_load_pattern('name', 'self_weight_multiplier=0', 'state=StateType.ACTIVE')</code></pre>
+                    </div>
+
+                    <div id="asignacion" class="subsection">
+                        <h3>9. Comandos de asignación</h3>
+
+                        <h4>9.1. Modificador de propiedades</h4>
+                        <pre><code class="language-python">model.set_property_modifiers('section_name', 'axial_area=1', 'shear_area=1', 'moment_inertia=1', 'weight=1')</code></pre>
+
+                        <h4>9.2. Condiciones de frontera</h4>
+                        <h5>9.2.1. Restricciones</h5>
+                        <pre><code class="language-python">model.add_restraint('node_id', 'ux', 'uy', 'rz')</code></pre>
+
+                        <h5>9.2.2. Apoyos elásticos</h5>
+                        <pre><code class="language-python">model.add_elastic_support('node_id', 'kx=None', 'ky=None', 'krz=None', 'CSys=CoordinateSystemType.GLOBAL')</code></pre>
+
+                        <h5>9.2.3. Eje local</h5>
+                        <pre><code class="language-python">model.add_local_axis_for_node('node_id', 'angle')</code></pre>
+
+                        <h4>9.3. Cargas</h4>
+                        <h5>9.3.1. Cargas puntuales</h5>
+                        <pre><code class="language-python">model.add_point_load('node_id', 'load_pattern_name', 'fx=0', 'fy=0', 'mz=0', 'CSys=CoordinateSystemType.GLOBAL', 'replace=False')</code></pre>
+
+                        <h5>9.3.2. Desplazamientos prescritos</h5>
+                        <pre><code class="language-python">model.add_prescribed_dof('node_id', 'load_pattern_name', 'ux=None', 'uy=None', 'rz=None', 'CSys=CoordinateSystemType.GLOBAL')</code></pre>
+
+                        <h5>9.3.3. Cargas distribuidas</h5>
+                        <pre><code class="language-python">model.add_distributed_load('member_id', 'load_pattern_name', 'load_start=0', 'load_end=0', 'CSys=CoordinateSystemType.GLOBAL', 'direction=DirectionType.LOCAL_2', 'load_type=LoadType.FORCE', 'replace=False')</code></pre>
+
+                        <h5>9.3.4. Peso propio</h5>
+                        <pre><code class="language-python">model.add_self_weight('load_pattern_name', 'factor=1')</code></pre>
+
+                        <h4>9.4. Desfase de extremos (brazos rígidos)</h4>
+                        <pre><code class="language-python">model.add_end_length_offset('member_id', 'la=0', 'lb=0', 'qla=True', 'qlb=True', 'fla=1', 'flb=1')</code></pre>
+
+                        <h4>9.5. Liberaciones</h4>
+                        <pre><code class="language-python">model.add_releases('member_id', 'pi=False', 'vi=False', 'mi=False', 'pj=False', 'vj=False', 'mj=False')</code></pre>
+                    </div>
+
+                    <div id="analisis" class="subsection">
+                        <h3>10. Comandos de análisis</h3>
+                        <pre><code class="language-python">model.solve(load_pattern_name=None)</code></pre>
+                    </div>
+
+                    <div id="postproceso" class="subsection">
+                        <h3>11. Comandos de postprocesamiento</h3>
+
+                        <h4>11.1. Matriz de rigidez global</h4>
+                        <pre><code class="language-python">matrix: NDArray = model.get_global_stiffness_matrix()</code></pre>
+
+                        <h4>11.2. Vector de fuerzas global</h4>
+                        <pre><code class="language-python">vector: NDArray = model.get_global_load_vector('load_pattern_name')</code></pre>
+
+                        <h4>11.3. Visualización</h4>
+                        <pre><code class="language-python">model.show()</code></pre>
+                        <p>Este comando abre una ventana interactiva para visualizar el modelo.</p>
+                    </div>
+
+                    <div id="resultados" class="subsection">
+                        <h3>12. Comando de resultados</h3>
+                        <pre><code class="language-python">results: Results = model.get_results('load_pattern_name')</code></pre>
+
+                        <h4>12.1. Resultados a nivel de modelo</h4>
+                        <pre><code class="language-python">displacements: np.ndarray = results.get_model_displacements()
+reactions: np.ndarray = results.get_model_reactions()</code></pre>
+
+                        <h4>12.2. Resultados a nivel de nodos</h4>
+                        <pre><code class="language-python">displacements: np.ndarray = results.get_node_displacements(node_id)
+reactions: np.ndarray = results.get_node_reactions(node_id)</code></pre>
+
+                        <h4>12.3. Resultados a nivel de miembros</h4>
+                        <pre><code class="language-python">displacements: np.ndarray = results.get_member_displacements(member_id)
+internal_forces: np.ndarray = results.get_member_internal_forces(member_id)
+axial_force: np.ndarray = results.get_member_axial_force(member_id)
+shear_force: np.ndarray = results.get_member_shear_force(member_id)
+bending_moment: np.ndarray = results.get_member_bending_moment(member_id)</code></pre>
+                    </div>
+                </section>
+
+                <!-- Ejemplo -->
+                <section id="ejemplo" class="section">
+                    <h2>Ejemplo de uso</h2>
+                    <pre><code class="language-python">from milcapy import SystemModel, BeamTheoriesType, model_viewer
+
+model = SystemModel()
+
+model.add_material(name="concreto", modulus_elasticity=2.1e6, poisson_ratio=0.2)
+model.add_rectangular_section(name="vigas", material_name="concreto", base=0.3, height=0.5)
+model.add_rectangular_section(name="muros", material_name="concreto", base=0.3, height=2.0)
+
+model.add_node(1, 0, 0)
+model.add_node(2, 0, 5)
+model.add_node(3, 7, 8.5)
+model.add_node(4, 14, 5)
+model.add_node(5, 14, 0)
+
+model.add_member(1, 1, 2, "muros", BeamTheoriesType.TIMOSHENKO)
+model.add_member(2, 2, 3, "vigas", BeamTheoriesType.EULER_BERNOULLI)
+model.add_member(3, 3, 4, "vigas", BeamTheoriesType.EULER_BERNOULLI)
+model.add_member(4, 4, 5, "muros", BeamTheoriesType.TIMOSHENKO)
+model.add_member(5, 2, 4, "vigas", BeamTheoriesType.EULER_BERNOULLI)
+
+model.add_restraint(1, (False, True, True))
+model.add_restraint(5, (False, True, True))
+
+model.add_load_pattern("Live Load")
+model.add_point_load(3, "Live Load", 0, -50, 0)
+model.add_distributed_load(2, "Live Load", -10, -5)
+
+model.solve()
+
+model_viewer(model)</code></pre>
+
+                    <div class="image-grid">
+                        <div class="image-item">
+                            <h4>Modelo</h4>
+                            <img src="assets/modelo.png" alt="Modelo"
+                                onerror="this.src='https://via.placeholder.com/400x300?text=Modelo'">
+                        </div>
+                        <div class="image-item">
+                            <h4>Deformada</h4>
+                            <img src="assets/deformada.png" alt="Deformada"
+                                onerror="this.src='https://via.placeholder.com/400x300?text=Deformada'">
+                        </div>
+                        <div class="image-item">
+                            <h4>Reacciones</h4>
+                            <img src="assets/reacciones.png" alt="Reacciones"
+                                onerror="this.src='https://via.placeholder.com/400x300?text=Reacciones'">
+                        </div>
+                        <div class="image-item">
+                            <h4>Diagramas de momentos</h4>
+                            <img src="assets/diag_momentos.png" alt="Momentos"
+                                onerror="this.src='https://via.placeholder.com/400x300?text=Momentos'">
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Galería -->
+                <section id="galeria" class="section">
+                    <h2>Galería</h2>
+                    <div class="gallery">
+                        <img src="assets/img/gallery_1.png" alt="Ejemplo 1" onerror="this.style.display='none'" loading="lazy">
+                        <img src="assets/img/gallery_2.png" alt="Ejemplo 2" onerror="this.style.display='none'" loading="lazy">
+                        <img src="assets/img/gallery_3.png" alt="Ejemplo 3" onerror="this.style.display='none'" loading="lazy">
+                        <img src="assets/img/gallery_4.png" alt="Ejemplo 4" onerror="this.style.display='none'" loading="lazy">
+                        <img src="assets/img/gallery_5.png" alt="Ejemplo 5" onerror="this.style.display='none'" loading="lazy">
+                        <img src="assets/img/gallery_6.png" alt="Ejemplo 6" onerror="this.style.display='none'" loading="lazy">
+                    </div>
+                </section>
+
+                <!-- Footer -->
+                <footer class="footer">
+                    <p>Desarrollado por <strong>Amilcar Machacca Mayo</strong></p>
+                    <p>
+                        <a href="https://github.com/Milca-py" target="_blank">GitHub</a> |
+                        <a href="https://github.com/Milca-py/MilcaStructures" target="_blank">Repositorio</a>
+                    </p>
+                </footer>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+    <script src="assets/js/main.js"></script>
+</body>
+
+</html>

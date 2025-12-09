@@ -47,7 +47,6 @@ portal.add_elastic_timoshenko_beam(18, 3, 7, 'arriostre')
 portal.add_elastic_timoshenko_beam(19, 8, 11, 'arriostre')
 portal.add_elastic_timoshenko_beam(20, 9, 12, 'arriostre')
 portal.add_elastic_timoshenko_beam(21, 10, 13, 'arriostre')
-portal.plot_model('carga')
 
 portal.add_restraint(1, *(True, True, True))
 portal.add_restraint(11, *(True, True, True))
@@ -62,8 +61,8 @@ portal.add_point_load(2, 'carga', 1000)
 portal.add_point_load(3, 'carga', 2000)
 portal.add_point_load(4, 'carga', 3000)
 
-# portal.solve()
+portal.solve()
 portal.plotter_options.mod_support_size = 2
-portal.plotter_options.internal_forces_label = True
+portal.plotter_options.internal_forces_label = False
 portal.plotter_options.internal_forces_ratio_scale = 0.3
-# portal.show()
+portal.show()
