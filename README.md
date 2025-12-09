@@ -733,13 +733,13 @@ model_viewer(model)
 
 <p align="center">
   <img src="docs/assets/img/%20(21).png" alt="Resultados" width="700"><br>
-  <img src="docs/assets/img/%20(6).png" alt="Resultados"  width="700"><br>
-  <img src="docs/assets/img/%20(4).png" alt="Resultados"  width="700"><br>
-  <img src="docs/assets/img/%20(2).png" alt="Resultados"  width="700"><br>
-  <img src="docs/assets/img/%20(5).png" alt="Resultados"  width="700"><br>
-  <img src="docs/assets/img/%20(3).png" alt="Resultados"  width="700"><br>
+  <img src="docs/assets/img/(6).png" alt="Resultados"  width="700"><br>
+  <img src="docs/assets/img/(4).png" alt="Resultados"  width="700"><br>
+  <img src="docs/assets/img/(2).png" alt="Resultados"  width="700"><br>
+  <img src="docs/assets/img/(5).png" alt="Resultados"  width="700"><br>
+  <img src="docs/assets/img/(3).png" alt="Resultados"  width="700"><br>
   <img src="docs/assets/img/%20(8).png" alt="Resultados"  width="700"><br>
-  <img src="docs/assets/img/%20(1).png" alt="Resultados"  width="700"><br>
+  <img src="docs/assets/img/(1).png" alt="Resultados"  width="700"><br>
   <img src="docs/assets/img/%20(11).png" alt="Resultados" width="700"><br>
   <img src="docs/assets/img/%20(14).png" alt="Resultados" width="700"><br>
   <img src="docs/assets/img/%20(15).png" alt="Resultados" width="700"><br>
