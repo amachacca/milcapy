@@ -1581,76 +1581,26 @@ class SystemMilcaModel:
         cmap: str = "jet"
     ):
         """
-        Grafica un campo de esfuerzos o deformaciones en el modelo.
+        Grafica un campo de esfuerzos/deformaciones/desplazamientos.
 
-        Args:
-            field (Union[FieldType, str]): Campo de esfuerzos o deformaciones a graficar.
-            cmap (str, opcional): Mapa de colores para la visualización. Default es "jet".
-
-        Raises:
-            ValueError: Si el campo no es válido.
+        Wrapper delgado sobre :func:`field_service.nodal_field`: el cálculo
+        (Gauss -> nodos -> promedio ponderado por área) vive en el servicio;
+        aquí solo queda el dibujo. Acepta ``str`` o ``FieldType`` e incluye
+        VM/S1/S2 además de los campos históricos.
         """
-        # coordenadas nodales
-        x = [node.vertex.x for node in self.nodes.values()]
-        y = [node.vertex.y for node in self.nodes.values()]
+        from milcapy.postprocess.field_service import nodal_field as _nodal_field
 
-        triangles = []
-        node_values = {nid: [] for nid in self.nodes.keys()}
+        if isinstance(field, str):
+            field = to_enum(field, FieldType)
+        pattern = self.current_load_pattern
+        x, y, triangles, nodal_vals = _nodal_field(self, pattern, field)
 
-        for cst in self.csts.values():
-            if isinstance(cst, MembraneTriangle):
-                n1, n2, n3 = cst.node1, cst.node2, cst.node3
-                triangles.append([n1.id - 1, n2.id - 1, n3.id - 1])
-
-                # esfuerzos y deformaciones (al centroide)
-                stresses = self.results[self.current_load_pattern].get_cst_stresses(
-                    cst.id)
-                strains = self.results[self.current_load_pattern].get_cst_strains(
-                    cst.id)
-
-                if field == FieldType.SX:
-                    val = stresses[0]
-                elif field == FieldType.SY:
-                    val = stresses[1]
-                elif field == FieldType.SXY:
-                    val = stresses[2]
-                elif field == FieldType.EX:
-                    val = strains[0]
-                elif field == FieldType.EY:
-                    val = strains[1]
-                elif field == FieldType.EXY:
-                    val = strains[2]
-                else:
-                    val = None
-
-                if val is not None:
-                    # asignar valor del centroide a nodos
-                    for n in [n1, n2, n3]:
-                        node_values[n.id].append(val)
-
-        # --- NUEVO: desplazamientos nodales ---
-        if field in [FieldType.UX, FieldType.UY, FieldType.UMAG]:
-            for nid, node in self.nodes.items():
-                ux, uy = self.results[self.current_load_pattern].get_node_displacements(nid)[
-                    :2]
-                if field == FieldType.UX:
-                    node_values[nid] = [ux]
-                elif field == FieldType.UY:
-                    node_values[nid] = [uy]
-                elif field == FieldType.UMAG:
-                    node_values[nid] = [np.sqrt(ux**2 + uy**2)]
-
-        # promediar valores en los nodos
-        nodal_field = np.zeros(len(self.nodes))
-        for nid, vals in node_values.items():
-            if vals:
-                nodal_field[nid - 1] = np.mean(vals)
-
-        triang = tri.Triangulation(x, y, triangles)
+        triang = tri.Triangulation(x, y, triangles if len(triangles) else None)
+        masked = np.ma.masked_invalid(nodal_vals)
 
         # --- GRAFICADO CON tricontourf ---
         plt.figure(figsize=(15, 8))
-        tcf = plt.tricontourf(triang, nodal_field,
+        tcf = plt.tricontourf(triang, masked,
                               levels=20, cmap=cmap)  # suavizado
         plt.colorbar(tcf, label=f"{field.value}")
         # --- GRAFICANDO LOS MIEMBROS ESTRUCTURALES ----
@@ -1693,6 +1643,15 @@ class SystemMilcaModel:
 
     def _plot_exy(self):
         self.plot_field(FieldType.EXY)
+
+    def _plot_vm(self):
+        self.plot_field(FieldType.VM)
+
+    def _plot_s1(self):
+        self.plot_field(FieldType.S1)
+
+    def _plot_s2(self):
+        self.plot_field(FieldType.S2)
 
 
     #! METODOS PRIVADOS ######################################################
