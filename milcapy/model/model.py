@@ -1243,7 +1243,7 @@ class SystemMilcaModel:
         if edge not in [1, 2, 3]:
             raise ValueError(f"Las caras(edge) solo puenden ser [1, 2, 3]")
 
-        self.load_patterns[load_pattern_name].add_cst_uniform_edge_load(
+        self.load_patterns[load_pattern_name].add_cst_linear_edge_load(
             cst_id=cst_id,
             qi=qi,
             qj=qj,

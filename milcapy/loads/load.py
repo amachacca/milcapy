@@ -965,8 +965,12 @@ class CSTLoad:
         """
         Añade una carga distribuida uniforme en el borde del elemento
         """
-        beta = np.pi - np.arctan((self.coordinates[edge][1] - self.coordinates[edge-1][1])/(self.coordinates[edge][0] - self.coordinates[edge-1][0]))
-        length = np.sqrt((self.coordinates[edge][0] - self.coordinates[edge-1][0])**2 + (self.coordinates[edge][1] - self.coordinates[edge-1][1])**2)
+        if edge not in (1, 2, 3):
+            raise ValueError(f"edge debe ser 1, 2 o 3, recibido {edge}")
+        xa, ya = self.coordinates[edge - 1]
+        xb, yb = self.coordinates[edge % 3]
+        beta = np.pi - np.arctan((yb - ya) / (xb - xa))
+        length = np.sqrt((xb - xa) ** 2 + (yb - ya) ** 2)
         qx = q*np.sin(beta)
         qy = q*np.cos(beta)
         if edge == 1:
@@ -988,8 +992,12 @@ class CSTLoad:
         Añade una carga distribuida lineal en el borde del elemento
         Note: el sentido es en orden de los nodos (antihorario)
         """
-        beta = np.pi - np.arctan((self.coordinates[edge][1] - self.coordinates[edge-1][1])/(self.coordinates[edge][0] - self.coordinates[edge-1][0]))
-        length = np.sqrt((self.coordinates[edge][0] - self.coordinates[edge-1][0])**2 + (self.coordinates[edge][1] - self.coordinates[edge-1][1])**2)
+        if edge not in (1, 2, 3):
+            raise ValueError(f"edge debe ser 1, 2 o 3, recibido {edge}")
+        xa, ya = self.coordinates[edge - 1]
+        xb, yb = self.coordinates[edge % 3]
+        beta = np.pi - np.arctan((yb - ya) / (xb - xa))
+        length = np.sqrt((xb - xa) ** 2 + (yb - ya) ** 2)
         qxi = qi*np.sin(beta)
         qyi = qi*np.cos(beta)
         qxj = qj*np.sin(beta)

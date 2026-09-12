@@ -1,9 +1,8 @@
-from ast import Dict
+from typing import Dict, Optional
 from milcapy.core.node import Node
 from milcapy.section.section import ShellSection
 import numpy as np
 from milcapy.loads.load import CSTLoad
-from typing import Optional
 from milcapy.utils.types import ConstitutiveModelType
 
 class MembraneTriangle:

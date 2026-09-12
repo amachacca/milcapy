@@ -229,7 +229,15 @@ class Results:
         return self.model
 
     def get_results(self) -> Dict[str, Dict[str, np.ndarray]]:
-        return self.results
+        return {
+            "model": self.model,
+            "nodes": self.nodes,
+            "members": self.members,
+            "CST": self.CST,
+            "membrane_q3dof": self.membrane_q3dof,
+            "membrane_q2dof": self.membrane_q2dof,
+            "trusses": self.trusses,
+        }
 
     def set_cst_displacements(self, cst_id: int, displacement: np.ndarray) -> None:
         if cst_id not in self.CST:
@@ -240,9 +248,13 @@ class Results:
         return self.CST[cst_id]["displacements"]
 
     def set_cst_strains(self, cst_id: int, strains: np.ndarray) -> None:
+        if cst_id not in self.CST:
+            self.CST[cst_id] = {"displacements": np.zeros(6)}
         self.CST[cst_id]["strains"] = strains
 
     def set_cst_stresses(self,  cst_id: int, stresses: np.ndarray) -> None:
+            if cst_id not in self.CST:
+                self.CST[cst_id] = {"displacements": np.zeros(6)}
             self.CST[cst_id]["stresses"] = stresses
 
     def get_cst_strains(self, cst_id: int) -> None:

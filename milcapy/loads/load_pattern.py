@@ -174,7 +174,7 @@ class LoadPattern:
         """
         if not name.strip():
             raise ValueError("El nombre del patrón de carga no puede estar vacío")
-        if self_weight_multiplier < 0:
+        if self_weight_multiplier is not None and self_weight_multiplier < 0:
             raise ValueError("El multiplicador de peso propio no puede ser negativo")
 
         self._system = system
