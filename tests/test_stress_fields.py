@@ -174,18 +174,45 @@ def _mixed_model():
     return m
 
 
-def test_split_field_cst_flat_quad_smooth():
+def test_split_field_unified_with_cst_averaged():
     from milcapy.postprocess.field_service import split_field
     m = _mixed_model()
-    x, y, cst_tris, cst_face, quad_tris, quad_nodal = split_field(m, "D", FieldType.SX)
-    assert cst_tris.shape == (2, 3) and cst_face.shape == (2,)
-    assert quad_tris.shape == (2, 3) and quad_nodal.shape == (6,)
-    # CST: constante por elemento (un valor por triángulo)
-    assert np.all(np.isfinite(cst_face))
+    x, y, tris, nodal = split_field(m, "D", FieldType.SX)
+    assert tris.shape == (4, 3)  # 2 CST + quad dividido en 2
+    assert nodal.shape == (6,)
+    assert np.all(np.isfinite(nodal))
 
 
-def test_stress_layer_contour_and_flat_with_floating_colorbar():
-    from matplotlib.collections import PolyCollection
+def test_cst_nodes_are_area_weighted_averages():
+    """El nodo compartido por 2 CST es el promedio ponderado por áreas."""
+    from milcapy.postprocess.field_service import split_field
+    m = SystemModel()
+    m.add_material("c", E, V)
+    m.add_shell_section("s", "c", 0.2)
+    m.add_node(1, 0, 0)
+    m.add_node(2, 2, 0)
+    m.add_node(3, 2, 1)
+    m.add_node(4, 0, 1)
+    m.add_cst(1, 1, 2, 3, "s")  # área 1.0
+    m.add_cst(2, 1, 3, 4, "s")  # área 1.0
+    for nid in m.nodes:
+        m.add_restraint(nid, True, False, True)
+    m.add_load_pattern("D")
+    m.add_point_load(2, "D", fx=500.0, fy=-300.0)
+    m.solve()
+    r = m.get_results("D")
+    s1 = np.asarray(r.get_cst_stresses(1)).ravel()
+    s2 = np.asarray(r.get_cst_stresses(2)).ravel()
+    assert not np.allclose(s1, s2)  # estados distintos -> promedio no trivial
+    _, _, _, nodal = split_field(m, "D", FieldType.SX)
+    idx = {nid: k for k, nid in enumerate(m.nodes.keys())}
+    a1, a2 = abs(float(m.csts[1].A)), abs(float(m.csts[2].A))
+    assert nodal[idx[1]] == pytest.approx((s1[0] * a1 + s2[0] * a2) / (a1 + a2))
+    assert nodal[idx[2]] == pytest.approx(s1[0])  # solo CST 1
+    assert nodal[idx[4]] == pytest.approx(s2[0])  # solo CST 2
+
+
+def test_stress_layer_single_contour_with_floating_colorbar():
     from matplotlib.contour import ContourSet
     from milcapy.plotter.plotter import Plotter
     m = _mixed_model()
@@ -193,10 +220,10 @@ def test_stress_layer_contour_and_flat_with_floating_colorbar():
     m.plotter.initialize_plot()
     assert m.plotter.update_stress_field(visibility=True) is True
     artists = m.plotter.stress_layer._artists
-    assert any(isinstance(a, ContourSet) for a in artists)      # quads: contour
-    assert any(isinstance(a, PolyCollection) for a in artists)  # CST: plano
+    assert len(artists) == 1 and isinstance(artists[0], ContourSet)  # un solo contour
     assert len(m.plotter.axes.child_axes) == 1  # colorbar flotante en el canvas
     assert m.plotter.update_stress_field(field="VM", visibility=True) is True
+    assert len(m.plotter.stress_layer._artists) == 1
     m.plotter.update_stress_field(visibility=False)
     assert not m.plotter.stress_layer.visible
     assert len(m.plotter.axes.child_axes) == 0
@@ -334,3 +361,50 @@ def test_membrane_picking_uses_fill_not_edge():
     assert arts[0].contains(at(0.2, 0.2))[0] is False  # la arista ya no dispara
     assert fill.contains(at(0.9, 0.9))[0] is False   # fuera
     plt.close("all")
+
+
+class _StubLabel:
+    def __init__(self):
+        self.text = ""
+
+    def configure(self, text=""):
+        self.text = text
+
+
+class _StubCanvas:
+    def draw(self):
+        pass
+
+
+def test_popup_draw_uses_contour_headless():
+    """El popup dibuja contour (nada plano) sin necesitar display."""
+    import matplotlib
+    from matplotlib.contour import ContourSet
+    from milcapy.postprocess.field_service import element_field_data
+    from milcapy.plotter.widgets import MembraneStressWidget
+    m, _ = _gauss_model("q4")
+    data = element_field_data(m, "D", "q2", 1)
+    w = MembraneStressWidget.__new__(MembraneStressWidget)
+    w.data = data
+    w.field, w.cmap, w.levels = "SX", "jet", 8
+    w.show_gauss, w.show_nodes = True, True
+    w._cbar, w._cax = None, None
+    w.fig = matplotlib.pyplot.figure()
+    w.ax = w.fig.add_subplot(111)
+    w.canvas, w.minmax_label, w.status_label = _StubCanvas(), _StubLabel(), _StubLabel()
+    w._draw()
+    kinds = [type(a).__name__ for a in w.ax.collections]
+    assert any(isinstance(a, ContourSet) for a in w.ax.collections), kinds
+    assert "Min" in w.minmax_label.text and "Max" in w.minmax_label.text
+    # hover: dentro -> valor, fuera -> "—"
+    cx, cy = np.asarray(data["node_xy"]).mean(axis=0)
+    w._on_hover(type("E", (), {"inaxes": w.ax, "xdata": cx, "ydata": cy})())
+    assert "SX=" in w.status_label.text
+    w._on_hover(type("E", (), {"inaxes": w.ax, "xdata": 1e6, "ydata": 1e6})())
+    assert w.status_label.text == "—"
+    # CST también en contour
+    m2, _ = _gauss_model("cst")
+    w.data = element_field_data(m2, "D", "cst", 1)
+    w._draw()
+    assert any(isinstance(a, ContourSet) for a in w.ax.collections)
+    matplotlib.pyplot.close("all")
