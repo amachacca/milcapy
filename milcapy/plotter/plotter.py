@@ -17,6 +17,7 @@ from milcapy.plotter.load import (
 )
 from milcapy.plotter.plotter_values import PlotterValues
 from milcapy.plotter.options import PlotterOptions
+from milcapy.plotter.stress_layer import StressLayer
 from milcapy.plotter.widgets import DiagramConfig
 from milcapy.plotter.utils import separate_areas, process_segments
 
@@ -130,6 +131,9 @@ class Plotter:
 
         #! TRUSS ELEMENT:
         self.trusses = {}  # {truss_id: [Line2D]}
+
+        #! CAPA DE ESFUERZOS (mapa de colores, solo patrón actual)
+        self.stress_layer = StressLayer(self)
 
     @property
     def plotter_options(self) -> 'PlotterOptions':
@@ -257,10 +261,29 @@ class Plotter:
         # actualizar pattern actual al primero
         self.current_load_pattern = list(self.model.results.keys())[0]
         self.update_change()
+        if self.plotter_options.UI_stress:
+            self.update_stress_field(visibility=True)
+
+    def plot_stress_field(self, field=None, cmap: Optional[str] = None) -> bool:
+        """Dibuja el mapa de esfuerzos del patrón actual (delega a StressLayer)."""
+        self.current_values = self.get_plotter_values(self.current_load_pattern)
+        return self.stress_layer.show(field=field, cmap=cmap)
+
+    def update_stress_field(self, field=None, visibility: Optional[bool] = None, cmap: Optional[str] = None) -> bool:
+        """Muestra/oculta el mapa de esfuerzos según opciones y visibilidad."""
+        if visibility is None:
+            visibility = self.plotter_options.UI_stress
+        self.plotter_options.UI_stress = bool(visibility)
+        if not visibility:
+            self.stress_layer.hide()
+            return False
+        self.current_values = self.get_plotter_values(self.current_load_pattern)
+        return self.stress_layer.show(field=field, cmap=cmap)
 
     def update_change(self):
         """Oculta atists para todos los load patterns excepto el actual"""
         pt_cache = self.current_load_pattern
+        self.stress_layer.hide(draw=False)
         for load_pattern_name in self.model.results.keys():
             self.current_load_pattern = load_pattern_name
             if load_pattern_name != pt_cache:
@@ -303,6 +326,9 @@ class Plotter:
                     self.update_reactions(visibility=True)
                 if self.plotter_options.UI_deformed or self.plotter_options.UI_rigid_deformed:
                     self.update_displaced_nodes(visibility=True)
+                if self.plotter_options.UI_stress and load_pattern_name == pt_cache:
+                    self.current_values = self.get_plotter_values(load_pattern_name)
+                    self.stress_layer.show()
                 # if self.plotter_options.UI_support:
                 #     self.update_supports(visibility=False)
                 #     self.update_elastic_supports(visibility=False)

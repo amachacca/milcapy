@@ -93,6 +93,7 @@ class PlotterValues:
         self.membrane_q3dof       = {} # {membrane_q3dof_id: (coords, displacements)}
         self.membrane_q2dof      = {} # {membrane_q2dof_id: (coords, displacements)}
         self.trusses           = {} # {truss_id: (coords, displacements)}
+        self._field_cache = {} # {(pattern, field_value): (x, y, tris, vals)}
 
         if not self.load_pattern:
             raise ValueError(
@@ -217,3 +218,19 @@ class PlotterValues:
             coordinates =  np.concatenate((truss.node_i.vertex.coordinates, truss.node_j.vertex.coordinates))
             displacements = np.concatenate((self.results.get_node_displacements(truss.node_i.id)[:2], self.results.get_node_displacements(truss.node_j.id)[:2]))
             self.trusses[truss.id] = (coordinates, displacements)
+
+    def nodal_field(self, field) -> tuple:
+        """Campo nodal promediado (x, y, tris, vals) con caché por patrón+campo.
+
+        Delega el cálculo a ``field_service``; esta clase solo cachea valores
+        para presentación.
+        """
+        from milcapy.postprocess.field_service import nodal_field as _nodal_field
+        from milcapy.utils.types import FieldType, to_enum
+
+        key = field.value if isinstance(field, FieldType) else str(field)
+        cache_key = (self.current_load_pattern, key)
+        if cache_key not in self._field_cache:
+            f = field if isinstance(field, FieldType) else to_enum(str(field), FieldType)
+            self._field_cache[cache_key] = _nodal_field(self.model, self.current_load_pattern, f)
+        return self._field_cache[cache_key]

@@ -280,6 +280,51 @@ class MatplotlibCanvas(QWidget):
                     self.model.plotter.members[member_id].set_color(original_color)
                     self.model.plotter.members[member_id].set_linewidth(original_linewidth)
                     self.model.plotter.figure.canvas.draw_idle()
+                return
+
+            # Membranas: clic derecho muestra tensiones nodales del elemento
+            for bucket, kind in (
+                (self.model.plotter.csts, "cst"),
+                (self.model.plotter.membrane_q3dof, "q3"),
+                (self.model.plotter.membrane_q2dof, "q2"),
+            ):
+                for ele_id, artists in bucket.items():
+                    line = artists[0] if artists else None
+                    if line is None:
+                        continue
+                    contains, _ = line.contains(event)
+                    if contains:
+                        self.annotation.set_text(
+                            self._membrane_stress_text(kind, ele_id))
+                        self.annotation.xy = (event.xdata, event.ydata)
+                        self.annotation.set_visible(True)
+                        self.canvas.draw_idle()
+                        return
+
+    def _membrane_stress_text(self, kind: str, ele_id: int) -> str:
+        """Texto de anotación con tensiones nodales promedio del elemento."""
+        decimals = self.plotter_options.disp_nodes_decimals
+        results = self.model.results[self.current_load_pattern]
+        try:
+            if kind == "cst":
+                s = np.asarray(results.get_cst_stresses(ele_id)).ravel()[:3]
+                e = np.asarray(results.get_cst_strains(ele_id)).ravel()[:3]
+                label = f"CST {ele_id}"
+            elif kind == "q3":
+                s = np.asarray(results.get_membrane_q3dof_stresses(ele_id)).reshape(-1, 3).mean(axis=0)
+                e = np.asarray(results.get_membrane_q3dof_strains(ele_id)).reshape(-1, 3).mean(axis=0)
+                label = f"Membrana Q3DOF {ele_id}"
+            else:
+                s = np.asarray(results.get_membrane_q2dof_stresses(ele_id)).reshape(-1, 3).mean(axis=0)
+                e = np.asarray(results.get_membrane_q2dof_strains(ele_id)).reshape(-1, 3).mean(axis=0)
+                label = f"Membrana Q2DOF {ele_id}"
+        except Exception:
+            return f"Elemento {ele_id}\n(sin resultados de esfuerzos)"
+        return (
+            f"{label}\n"
+            f"SX = {s[0]:.{decimals}f}\nSY = {s[1]:.{decimals}f}\nSXY = {s[2]:.{decimals}f}\n"
+            f"EX = {e[0]:.{decimals}f}\nEY = {e[1]:.{decimals}f}\nEXY = {e[2]:.{decimals}f}"
+        )
 
 
 class GraphicOptionsDialog(QDialog):
@@ -308,6 +353,7 @@ class GraphicOptionsDialog(QDialog):
         main_layout.addWidget(self.create_node_options())
         main_layout.addWidget(self.create_member_options())
         main_layout.addWidget(self.create_assignations_options())
+        main_layout.addWidget(self.create_stress_options())
         main_layout.addWidget(self.create_scale_options())
 
         # Botones Aceptar / Restaurar / Aplicar / Cancelar
@@ -414,6 +460,35 @@ class GraphicOptionsDialog(QDialog):
         group.setLayout(layout)
         return group
 
+    def create_stress_options(self):
+        """
+        Crea las opciones del mapa de esfuerzos en membranas.
+
+        Returns:
+            QGroupBox: El grupo de opciones de esfuerzos.
+        """
+        from milcapy.utils.types import FieldType as _FieldType
+
+        group = QGroupBox("Esfuerzos en membranas")
+        layout = QVBoxLayout()
+
+        self.show_stress_checkbox = QCheckBox("Mostrar esfuerzos")
+        layout.addWidget(self.show_stress_checkbox)
+
+        layout.addWidget(QLabel("Campo"))
+        self.stress_field_combo = QComboBox()
+        self.stress_field_combo.addItems([f.value for f in _FieldType])
+        layout.addWidget(self.stress_field_combo)
+
+        layout.addWidget(QLabel("Colormap"))
+        self.stress_colormap_combo = QComboBox()
+        self.stress_colormap_combo.addItems(
+            ["jet", "viridis", "plasma", "coolwarm", "rainbow", "turbo"])
+        layout.addWidget(self.stress_colormap_combo)
+
+        group.setLayout(layout)
+        return group
+
     def create_scale_options(self):
         """
         Crea las opciones para visualización de la forma deformada.
@@ -463,6 +538,9 @@ class GraphicOptionsDialog(QDialog):
         self.member_labels_checkbox.setChecked(False)
         self.show_loads_checkbox.setChecked(True)
         self.show_supports_checkbox.setChecked(True)
+        self.show_stress_checkbox.setChecked(False)
+        self.stress_field_combo.setCurrentText("SX")
+        self.stress_colormap_combo.setCurrentText("jet")
         scale = self.plotter_options.UI_deformation_scale.get(self.current_load_pattern, 40)
         self.deformation_scale_input.setText(str(round(scale, 2)))
         # scale = self.plotter_options.UI_internal_forces_scale.get(self.current_load_pattern, 40)
@@ -501,6 +579,9 @@ class GraphicOptionsDialog(QDialog):
         self.options["UI_member_labels"] = self.member_labels_checkbox.isChecked()
         self.options["UI_load"] = self.show_loads_checkbox.isChecked()
         self.options["UI_support"] = self.show_supports_checkbox.isChecked()
+        self.options["UI_stress"] = self.show_stress_checkbox.isChecked()
+        self.options["UI_stress_field"] = self.stress_field_combo.currentText()
+        self.options["UI_stress_colormap"] = self.stress_colormap_combo.currentText()
         deformation_scale_text = self.deformation_scale_input.text()
         self.options["UI_deformation_scale"][self.current_load_pattern] = float(
             deformation_scale_text) if deformation_scale_text else 40
@@ -517,6 +598,14 @@ class GraphicOptionsDialog(QDialog):
         op.UI_member_labels = self.options.get("UI_member_labels", False)
         op.UI_load = self.options.get("UI_load", True)
         op.UI_support = self.options.get("UI_support", True)
+        op.UI_stress = self.options.get("UI_stress", False)
+        from milcapy.utils.types import FieldType as _FieldType, to_enum as _to_enum
+        try:
+            op.stress_field = _to_enum(
+                self.options.get("UI_stress_field", "SX"), _FieldType)
+        except ValueError:
+            op.stress_field = _FieldType.SX
+        op.stress_colormap = self.options.get("UI_stress_colormap", "jet")
 
     def _keep_data(self):
         """
@@ -532,6 +621,9 @@ class GraphicOptionsDialog(QDialog):
             self.options.get("UI_member_labels", False))
         self.show_loads_checkbox.setChecked(self.options.get("UI_load", True))
         self.show_supports_checkbox.setChecked(self.options.get("UI_support", True))
+        self.show_stress_checkbox.setChecked(self.options.get("UI_stress", False))
+        self.stress_field_combo.setCurrentText(self.options.get("UI_stress_field", "SX"))
+        self.stress_colormap_combo.setCurrentText(self.options.get("UI_stress_colormap", "jet"))
         self.deformation_scale_input.setText(str(self.options.get(
             "UI_deformation_scale", {}).get(self.current_load_pattern, 40)))
 
@@ -563,6 +655,8 @@ class GraphicOptionsDialog(QDialog):
         self.model.plotter.update_prescribed_dofs_labels()  # actualiza los labels de los grados de libertad prescindidos
         self.model.plotter.update_supports()                # actualiza los soportes
         self.model.plotter.update_elastic_supports()        # actualiza los soportes elásticos
+        # mapa de esfuerzos (campo/colormap desde el diálogo)
+        self.model.plotter.update_stress_field(visibility=self.options.get("UI_stress", False))
         # verificar si cambio la escala de deformación
         escala = self.options.get("UI_deformation_scale", {}).get(
             self.current_load_pattern, 40)
@@ -670,6 +764,25 @@ class MainWindow(QMainWindow):
         self.toolbar.addWidget(self.DEFORMADA_RIGIDA)
         self.DEFORMADA_RIGIDA.setChecked(
             self.model.plotter_options.UI_rigid_deformed)
+        self.toolbar.addSeparator()
+        self.ESFUERZOS = QCheckBox("Esfuerzos")
+        self.ESFUERZOS.stateChanged.connect(self.mostrar_esfuerzos)
+        self.toolbar.addWidget(self.ESFUERZOS)
+        self.ESFUERZOS.setChecked(self.model.plotter_options.UI_stress)
+        self.toolbar.addSeparator()
+
+        # SELECTOR DE CAMPO DE ESFUERZOS
+        from milcapy.utils.types import FieldType as _FieldType
+        self.combo_field = QComboBox()
+        self.combo_field.addItems([f.value for f in _FieldType])
+        current_field = self.model.plotter_options.stress_field
+        self.combo_field.setCurrentText(
+            current_field.value if isinstance(current_field, _FieldType) else str(current_field))
+        self.combo_field.currentTextChanged.connect(self.on_field_selected)
+        combo_field_action = QWidgetAction(self)
+        combo_field_action.setDefaultWidget(self.combo_field)
+        self.toolbar.addAction(combo_field_action)
+        self.toolbar.addSeparator()
 
         # Atajo de teclado (Ctrl + H) para mostrar/ocultar la barra de herramientas
         self.toggle_toolbar_shortcut = QShortcut(Qt.CTRL | Qt.Key_H, self)
@@ -691,6 +804,9 @@ class MainWindow(QMainWindow):
             "UI_filling_type": "Colormap",
             "UI_colormap": "rainbow",
             "UI_support": True,
+            "UI_stress": False,
+            "UI_stress_field": "SX",
+            "UI_stress_colormap": "jet",
         }
         #####################################################
 
@@ -742,6 +858,10 @@ class MainWindow(QMainWindow):
         self.DEFORMADA.setChecked(self.model.plotter_options.UI_deformed)
         self.DEFORMADA_RIGIDA.setChecked(
             self.model.plotter_options.UI_rigid_deformed)
+        self.ESFUERZOS.setChecked(self.model.plotter_options.UI_stress)
+        current_field = self.model.plotter_options.stress_field
+        self.combo_field.setCurrentText(
+            current_field.value if hasattr(current_field, "value") else str(current_field))
 
         # ! ACTUALIZACIONES DE VISIBILIDAD AL CAMBIAR EL PATRON
         if self.model.plotter_options.UI_deformed:
@@ -773,6 +893,10 @@ class MainWindow(QMainWindow):
             self.mostrar_soportes(2)
         elif not self.model.plotter_options.UI_support:
             self.mostrar_soportes(0)
+        if self.model.plotter_options.UI_stress:
+            self.mostrar_esfuerzos(2)
+        elif not self.model.plotter_options.UI_stress:
+            self.mostrar_esfuerzos(0)
 
     def mostrar_fuerzas_axiales(self, state):
         """Muestra las fuerzas axiales"""
@@ -859,6 +983,29 @@ class MainWindow(QMainWindow):
             self.model.plotter_options.UI_support = False
             self.model.plotter.update_supports()
             self.model.plotter.update_elastic_supports()
+
+    def on_field_selected(self, value):
+        """Cambia el campo de esfuerzos activo."""
+        from milcapy.utils.types import FieldType as _FieldType, to_enum as _to_enum
+        try:
+            field = _to_enum(value, _FieldType)
+        except ValueError:
+            return
+        self.model.plotter_options.stress_field = field
+        self.options_values["UI_stress_field"] = field.value
+        if self.model.plotter_options.UI_stress:
+            self.model.plotter.update_stress_field(field=field, visibility=True)
+
+    def mostrar_esfuerzos(self, state):
+        """Muestra el mapa de esfuerzos del campo activo."""
+        if state == 2:
+            self.model.plotter_options.UI_stress = True
+            self.options_values["UI_stress"] = True
+            self.model.plotter.update_stress_field(visibility=True)
+        elif state == 0:
+            self.model.plotter_options.UI_stress = False
+            self.options_values["UI_stress"] = False
+            self.model.plotter.update_stress_field(visibility=False)
 
     def diagrams_and_deformed(self, type):
         """Actualiza la apariencia de los miembros en función de la deformada o deformada rígida"""

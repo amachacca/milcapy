@@ -8,6 +8,8 @@ from typing import (
 )
 
 from numpy import mean
+
+from milcapy.utils.types import FieldType
 if TYPE_CHECKING:
     from milcapy.model.model import SystemMilcaModel
 class PlotterOptions:        # ✅✅✅
@@ -128,6 +130,13 @@ class PlotterOptions:        # ✅✅✅
         self.edge_color = 'black'              # Color de bordes en contornos
         self.alpha = 0.7                       # Transparencia para contornos
         self.num_contours = 20                 # Número de niveles en contornos
+
+        # CAPA DE ESFUERZOS EN MEMBRANAS (StressLayer del visor)
+        self.UI_stress = False                 # Mostrar mapa de esfuerzos
+        self.stress_field = FieldType.SX       # Campo activo
+        self.stress_colormap = 'jet'           # Colormap del mapa
+        self.stress_levels = 20                # Niveles (reservado)
+        self.stress_alpha = 0.8                # Transparencia del mapa
 
         # OPCIONES DE GUARDADO
         self.save_dpi = 300                    # DPI para guardar imágenes
