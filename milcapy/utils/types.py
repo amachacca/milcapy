@@ -82,12 +82,17 @@ class FieldType(Enum):
     UX = "UX"
     UY = "UY"
     UMAG = "UMAG"
+    VM = "VM"
+    S1 = "S1"
+    S2 = "S2"
 
 
 ENUM = TypeVar("ENUM", bound=Enum)
 def to_enum(key: str, enum: Type[ENUM]) -> ENUM:
     # def to_enum(key: str, enum: Enum) -> Enum:
     """Convierte un string a un miembro de un Enum."""
+    if isinstance(key, enum):
+        return key
     assert isinstance(key, str), 'La clave debe ser un string.'
     assert issubclass(
         enum, Enum), 'El segundo argumento debe ser una clase Enum.'
@@ -111,8 +116,8 @@ class IntegrationType(Enum):
 
 class MembraneQuadElementType(Enum):
     """Tipos de elementos de membrana."""
-    MQ4 = auto()
-    MQ6 = auto()
-    MQ6I = auto()
-    MQ8Reduced = auto()
-    MQ8Complete = auto()
+    MQ4 = "MQ4"
+    MQ6 = "MQ6"
+    MQ6I = "MQ6I"
+    MQ8Reduced = "MQ8Reduced"
+    MQ8Complete = "MQ8Complete"

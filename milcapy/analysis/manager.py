@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, ValuesView
+from collections.abc import ValuesView
+from typing import TYPE_CHECKING
 from milcapy.analysis.linear_static import LinearStaticAnalysis
 from milcapy.postprocess.post_processing import PostProcessing
 from milcapy.core.results import Results
@@ -93,6 +94,8 @@ class AnalysisManager:
             post_processing.post_process_for_cst()
             post_processing.process_displacements_for_membrane_q3dof()
             post_processing.process_displacements_for_membrane_q2dof()
+            post_processing.post_process_for_membrane_q3dof()
+            post_processing.post_process_for_membrane_q2dof()
             post_processing.post_process_for_members()
             post_processing.process_displacements_for_trusses()
             post_processing.process_internal_forces_for_trusses()

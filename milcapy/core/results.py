@@ -257,51 +257,83 @@ class Results:
                 self.CST[cst_id] = {"displacements": np.zeros(6)}
             self.CST[cst_id]["stresses"] = stresses
 
-    def get_cst_strains(self, cst_id: int) -> None:
+    def get_cst_strains(self, cst_id: int) -> np.ndarray:
         return self.CST[cst_id]["strains"]
 
-    def get_cst_stresses(self, cst_id: int) -> None:
+    def get_cst_stresses(self, cst_id: int) -> np.ndarray:
         return self.CST[cst_id]["stresses"]
 
     def set_membrane_q3dof_displacements(self, membrane_q3dof_id: int, displacement: np.ndarray) -> None:
         if membrane_q3dof_id not in self.membrane_q3dof:
-            self.membrane_q3dof[membrane_q3dof_id] = {"displacements": np.zeros(6)}
+            self.membrane_q3dof[membrane_q3dof_id] = {"displacements": np.zeros(12)}
         self.membrane_q3dof[membrane_q3dof_id]["displacements"] = displacement
 
     def get_membrane_q3dof_displacements(self, membrane_q3dof_id: int) -> np.ndarray:
         return self.membrane_q3dof[membrane_q3dof_id]["displacements"]
 
-    def set_membrane_q3dof_strains(self, membrane_q3dof_id: int, strains: np.ndarray) -> None:
-        pass
+    def set_membrane_q3dof_strains(self, membrane_q3dof_id: int, strains_nodes: np.ndarray, strains_gauss: np.ndarray | None = None) -> None:
+        """Guarda deformaciones: nodales (4,3) y opcionalmente en Gauss (ng,3)."""
+        if membrane_q3dof_id not in self.membrane_q3dof:
+            self.membrane_q3dof[membrane_q3dof_id] = {"displacements": np.zeros(12)}
+        self.membrane_q3dof[membrane_q3dof_id]["strains"] = strains_nodes
+        if strains_gauss is not None:
+            self.membrane_q3dof[membrane_q3dof_id]["strains_gauss"] = strains_gauss
 
-    def set_membrane_q3dof_stresses(self, membrane_q3dof_id: int, stresses: np.ndarray) -> None:
-        pass
+    def set_membrane_q3dof_stresses(self, membrane_q3dof_id: int, stresses_nodes: np.ndarray, stresses_gauss: np.ndarray | None = None) -> None:
+        """Guarda tensiones: nodales (4,3) y opcionalmente en Gauss (ng,3)."""
+        if membrane_q3dof_id not in self.membrane_q3dof:
+            self.membrane_q3dof[membrane_q3dof_id] = {"displacements": np.zeros(12)}
+        self.membrane_q3dof[membrane_q3dof_id]["stresses"] = stresses_nodes
+        if stresses_gauss is not None:
+            self.membrane_q3dof[membrane_q3dof_id]["stresses_gauss"] = stresses_gauss
 
-    def get_membrane_q3dof_strains(self, membrane_q3dof_id: int) -> None:
-        pass
+    def get_membrane_q3dof_strains(self, membrane_q3dof_id: int) -> np.ndarray:
+        return self.membrane_q3dof[membrane_q3dof_id]["strains"]
 
-    def get_membrane_q3dof_stresses(self, membrane_q3dof_id: int) -> None:
-        pass
+    def get_membrane_q3dof_stresses(self, membrane_q3dof_id: int) -> np.ndarray:
+        return self.membrane_q3dof[membrane_q3dof_id]["stresses"]
+
+    def get_membrane_q3dof_strains_gauss(self, membrane_q3dof_id: int) -> np.ndarray | None:
+        return self.membrane_q3dof[membrane_q3dof_id].get("strains_gauss")
+
+    def get_membrane_q3dof_stresses_gauss(self, membrane_q3dof_id: int) -> np.ndarray | None:
+        return self.membrane_q3dof[membrane_q3dof_id].get("stresses_gauss")
 
     def set_membrane_q2dof_displacements(self, membrane_q2dof_id: int, displacement: np.ndarray) -> None:
         if membrane_q2dof_id not in self.membrane_q2dof:
-            self.membrane_q2dof[membrane_q2dof_id] = {"displacements": np.zeros(6)}
+            self.membrane_q2dof[membrane_q2dof_id] = {"displacements": np.zeros(8)}
         self.membrane_q2dof[membrane_q2dof_id]["displacements"] = displacement
 
     def get_membrane_q2dof_displacements(self, membrane_q2dof_id: int) -> np.ndarray:
         return self.membrane_q2dof[membrane_q2dof_id]["displacements"]
 
-    def set_membrane_q2dof_strains(self, membrane_q2dof_id: int, strains: np.ndarray) -> None:
-        pass
+    def set_membrane_q2dof_strains(self, membrane_q2dof_id: int, strains_nodes: np.ndarray, strains_gauss: np.ndarray | None = None) -> None:
+        """Guarda deformaciones: nodales (4,3) y opcionalmente en Gauss (ng,3)."""
+        if membrane_q2dof_id not in self.membrane_q2dof:
+            self.membrane_q2dof[membrane_q2dof_id] = {"displacements": np.zeros(8)}
+        self.membrane_q2dof[membrane_q2dof_id]["strains"] = strains_nodes
+        if strains_gauss is not None:
+            self.membrane_q2dof[membrane_q2dof_id]["strains_gauss"] = strains_gauss
 
-    def set_membrane_q2dof_stresses(self, membrane_q2dof_id: int, stresses: np.ndarray) -> None:
-        pass
+    def set_membrane_q2dof_stresses(self, membrane_q2dof_id: int, stresses_nodes: np.ndarray, stresses_gauss: np.ndarray | None = None) -> None:
+        """Guarda tensiones: nodales (4,3) y opcionalmente en Gauss (ng,3)."""
+        if membrane_q2dof_id not in self.membrane_q2dof:
+            self.membrane_q2dof[membrane_q2dof_id] = {"displacements": np.zeros(8)}
+        self.membrane_q2dof[membrane_q2dof_id]["stresses"] = stresses_nodes
+        if stresses_gauss is not None:
+            self.membrane_q2dof[membrane_q2dof_id]["stresses_gauss"] = stresses_gauss
 
-    def get_membrane_q2dof_strains(self, membrane_q2dof_id: int) -> None:
-        pass
+    def get_membrane_q2dof_strains(self, membrane_q2dof_id: int) -> np.ndarray:
+        return self.membrane_q2dof[membrane_q2dof_id]["strains"]
 
-    def get_membrane_q2dof_stresses(self, membrane_q2dof_id: int) -> None:
-        pass
+    def get_membrane_q2dof_stresses(self, membrane_q2dof_id: int) -> np.ndarray:
+        return self.membrane_q2dof[membrane_q2dof_id]["stresses"]
+
+    def get_membrane_q2dof_strains_gauss(self, membrane_q2dof_id: int) -> np.ndarray | None:
+        return self.membrane_q2dof[membrane_q2dof_id].get("strains_gauss")
+
+    def get_membrane_q2dof_stresses_gauss(self, membrane_q2dof_id: int) -> np.ndarray | None:
+        return self.membrane_q2dof[membrane_q2dof_id].get("stresses_gauss")
 
     def set_truss_displacements(self, truss_id: int, displacement: np.ndarray) -> None:
         if truss_id not in self.trusses:

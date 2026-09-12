@@ -1,5 +1,6 @@
 from milcapy.postprocess.segment_member import BeamSeg
 from milcapy.postprocess.CST_pp import PP_CST
+from milcapy.postprocess import membrane_pp
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 import numpy as np
@@ -180,7 +181,7 @@ class PostProcessing:   # para un solo load pattern
 
 
     def post_process_for_cst(self) -> None:
-        """Almacacena los deformaciones unitarias y los esfuerzos en el centro del element"""
+        """Almacena deformaciones y tensiones (centroide + réplica nodal)."""
         calculator = PP_CST()
 
         for id, cst in self.model.csts.items():
@@ -191,12 +192,44 @@ class PostProcessing:   # para un solo load pattern
             stresses = calculator.stresses()
             self.results.set_cst_strains(id, strains)
             self.results.set_cst_stresses(id, stresses)
+            # Réplica nodal (3,3) para consumo uniforme del FieldService
+            self.results.CST[id]["strains_nodes"] = np.tile(np.asarray(strains).ravel()[:3], (3, 1))
+            self.results.CST[id]["stresses_nodes"] = np.tile(np.asarray(stresses).ravel()[:3], (3, 1))
 
     def post_process_for_membrane_q3dof(self) -> None:
-        pass
+        """Tensiones/deformaciones en Gauss extrapoladas a los 4 nodos (Q6 / MQ6IMod)."""
+        from milcapy.elements.MQ6IMod import MembraneQuad6IMod
+        from milcapy.elements.MQ6 import MembraneQuad6
+
+        for id, ele in self.model.membrane_q3dof.items():
+            u = self.results.get_membrane_q3dof_displacements(id)
+            if isinstance(ele, MembraneQuad6IMod):
+                strains_n, stresses_n, strains_g, stresses_g = membrane_pp.recover_q6imod(ele, u)
+            elif isinstance(ele, MembraneQuad6):
+                strains_n, stresses_n, strains_g, stresses_g = membrane_pp.recover_q6(ele, u)
+            else:  # pragma: no cover - bucket heterogéneo defensivo
+                continue
+            self.results.set_membrane_q3dof_strains(id, strains_n, strains_g)
+            self.results.set_membrane_q3dof_stresses(id, stresses_n, stresses_g)
 
     def post_process_for_membrane_q2dof(self) -> None:
-        pass
+        """Tensiones/deformaciones en Gauss extrapoladas a los 4 nodos (Q4/Q6I/Q8)."""
+        from milcapy.elements.quad4 import MembraneQuad4
+        from milcapy.elements.MQ6I import MembraneQuad6I
+        from milcapy.elements.quad8 import MembraneQuad8
+
+        for id, ele in self.model.membrane_q2dof.items():
+            u = self.results.get_membrane_q2dof_displacements(id)
+            if isinstance(ele, MembraneQuad4):
+                strains_n, stresses_n, strains_g, stresses_g = membrane_pp.recover_q4(ele, u)
+            elif isinstance(ele, MembraneQuad6I):
+                strains_n, stresses_n, strains_g, stresses_g = membrane_pp.recover_q6i(ele, u)
+            elif isinstance(ele, MembraneQuad8):
+                strains_n, stresses_n, strains_g, stresses_g = membrane_pp.recover_q8(ele, u)
+            else:  # pragma: no cover - bucket heterogéneo defensivo
+                continue
+            self.results.set_membrane_q2dof_strains(id, strains_n, strains_g)
+            self.results.set_membrane_q2dof_stresses(id, stresses_n, stresses_g)
 
     def post_process_for_trusses(self) -> None:
         """Almacena todos los resultados para cada truss en el objeto Results."""
