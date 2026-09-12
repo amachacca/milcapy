@@ -148,3 +148,57 @@ def test_q6imod_ele_type_str_and_postprocess():
     m.solve()
     s = np.asarray(m.get_results("D").get_membrane_q3dof_stresses(1))
     assert s.shape == (4, 3) and np.all(np.isfinite(s))
+
+
+def _mixed_model():
+    from milcapy.plotter.plotter_values import PlotterValues
+    PlotterValues._static_data = None  # caché estática global por proceso
+    m = SystemModel()
+    m.add_material("c", E, V)
+    m.add_shell_section("s", "c", 0.2)
+    m.add_node(1, 0, 0)
+    m.add_node(2, 1, 0)
+    m.add_node(3, 1, 1)
+    m.add_node(4, 0, 1)
+    m.add_node(5, 2, 0)
+    m.add_node(6, 2, 1)
+    m.add_membrane_q4(1, 1, 2, 3, 4, "s")
+    m.add_cst(2, 2, 5, 6, "s")
+    m.add_cst(3, 2, 6, 3, "s")
+    for nid in m.nodes:
+        m.add_restraint(nid, True, False, True)
+    m.add_load_pattern("D")
+    for nid in m.nodes:
+        m.add_prescribed_dof(nid, "D", ux=EX_REF * m.nodes[nid].vertex.x)
+    m.solve()
+    return m
+
+
+def test_split_field_cst_flat_quad_smooth():
+    from milcapy.postprocess.field_service import split_field
+    m = _mixed_model()
+    x, y, cst_tris, cst_face, quad_tris, quad_nodal = split_field(m, "D", FieldType.SX)
+    assert cst_tris.shape == (2, 3) and cst_face.shape == (2,)
+    assert quad_tris.shape == (2, 3) and quad_nodal.shape == (6,)
+    # CST: constante por elemento (un valor por triángulo)
+    assert np.all(np.isfinite(cst_face))
+
+
+def test_stress_layer_contour_and_flat_with_floating_colorbar():
+    from matplotlib.collections import PolyCollection
+    from matplotlib.contour import ContourSet
+    from milcapy.plotter.plotter import Plotter
+    m = _mixed_model()
+    m.plotter = Plotter(m)
+    m.plotter.initialize_plot()
+    assert m.plotter.update_stress_field(visibility=True) is True
+    artists = m.plotter.stress_layer._artists
+    assert any(isinstance(a, ContourSet) for a in artists)      # quads: contour
+    assert any(isinstance(a, PolyCollection) for a in artists)  # CST: plano
+    assert len(m.plotter.axes.child_axes) == 1  # colorbar flotante en el canvas
+    assert m.plotter.update_stress_field(field="VM", visibility=True) is True
+    m.plotter.update_stress_field(visibility=False)
+    assert not m.plotter.stress_layer.visible
+    assert len(m.plotter.axes.child_axes) == 0
+    assert len(m.plotter.figure.axes) == 1
+    plt.close("all")

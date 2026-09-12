@@ -25,10 +25,34 @@ if TYPE_CHECKING:
     from milcapy.model.model import SystemMilcaModel
     from milcapy.core.results import Results
 
-__all__ = ["nodal_field", "supported_fields", "field_label"]
+__all__ = ["nodal_field", "split_field", "supported_fields", "field_label"]
 
 _STRESS = {"SX": 0, "SY": 1, "SXY": 2}
 _STRAIN = {"EX": 0, "EY": 1, "EXY": 2}
+
+
+def _coerce_field(field) -> FieldType:
+    if isinstance(field, FieldType):
+        return field
+    try:
+        return FieldType(field)
+    except Exception as exc:
+        raise ValueError(f"Campo no válido: {field}") from exc
+
+
+def _derived_value(field: FieldType, sx, sy, sxy):
+    if field == FieldType.VM:
+        return von_mises(sx, sy, sxy)
+    s1, s2 = principal_stresses(sx, sy, sxy)
+    return s1 if field == FieldType.S1 else s2
+
+
+def _centroid_of(data, key: str) -> np.ndarray:
+    """Vector (3,) centroide: clave directa o media de la réplica nodal."""
+    arr = np.asarray(data[key], dtype=float)
+    if arr.ndim == 1:
+        return arr.ravel()[:3]
+    return arr.reshape(-1, 3).mean(axis=0)
 
 
 def supported_fields() -> list[FieldType]:
@@ -155,3 +179,125 @@ def nodal_field(model: "SystemMilcaModel", pattern: str, field: FieldType):
 
             )
     return x, y, np.asarray(tris, dtype=int).reshape(-1, 3) if tris else np.zeros((0, 3), dtype=int), vals
+
+
+def split_field(model: "SystemMilcaModel", pattern: str, field: FieldType):
+    """Parte el campo en CST (constante por elemento) y quads (suave nodal).
+
+    Returns:
+        x, y: coordenadas nodales (n,).
+        cst_tris (nc,3): un triángulo por CST; cst_face (nc,): valor
+            constante del elemento (centroide; UX/UY/UMAG = media nodal).
+        quad_tris (nq,3): quads divididos en 2 triángulos.
+        quad_nodal (n,): promedio ponderado por área solo de quads
+            (nan donde no aportan).
+    """
+    field = _coerce_field(field)
+    if pattern not in model.results:
+        raise KeyError(f"Sin resultados para el patrón '{pattern}'")
+    results = model.results[pattern]
+
+    node_ids = list(model.nodes.keys())
+    index = {nid: k for k, nid in enumerate(node_ids)}
+    n = len(node_ids)
+    x = np.array([model.nodes[nid].vertex.x for nid in node_ids], dtype=float)
+    y = np.array([model.nodes[nid].vertex.y for nid in node_ids], dtype=float)
+
+    cst_tris: list[list[int]] = []
+    cst_face: list[float] = []
+
+    qacc = np.zeros(n)
+    qwacc = np.zeros(n)
+    quad_tris: list[list[int]] = []
+
+    def _qacc(nids, vals, area):
+        a = max(float(area), 1e-12)
+        for nid, v in zip(nids, vals):
+            if v is None:
+                continue
+            fv = float(v)
+            if np.isnan(fv):
+                continue
+            k = index[nid]
+            qacc[k] += fv * a
+            qwacc[k] += a
+
+    def _qvals(data, nids, area):
+        if field in (FieldType.SX, FieldType.SY, FieldType.SXY):
+            _qacc(nids, np.asarray(data["stresses"], dtype=float)[:, _STRESS[field.name]], area)
+        elif field in (FieldType.EX, FieldType.EY, FieldType.EXY):
+            _qacc(nids, np.asarray(data["strains"], dtype=float)[:, _STRAIN[field.name]], area)
+        elif field in (FieldType.VM, FieldType.S1, FieldType.S2):
+            arr = np.asarray(data["stresses"], dtype=float)
+            _qacc(nids, [_derived_value(field, *row) for row in arr], area)
+
+    # --- CST: un color por elemento (constant strain) ---
+    for eid, cst in model.csts.items():
+        data = results.CST.get(eid)
+        if not data or "stresses" not in data or "strains" not in data:
+            continue
+        nids = [cst.node1.id, cst.node2.id, cst.node3.id]
+        cst_tris.append([index[i] for i in nids])
+        if field in (FieldType.SX, FieldType.SY, FieldType.SXY):
+            cst_face.append(float(_centroid_of(data, "stresses")[_STRESS[field.name]]))
+        elif field in (FieldType.EX, FieldType.EY, FieldType.EXY):
+            cst_face.append(float(_centroid_of(data, "strains")[_STRAIN[field.name]]))
+        elif field in (FieldType.VM, FieldType.S1, FieldType.S2):
+            s = _centroid_of(data, "stresses")
+            cst_face.append(float(_derived_value(field, *s)))
+        else:  # UX/UY/UMAG: media de los 3 nodos -> un color por triángulo
+            try:
+                d = np.array([results.get_node_displacements(i)[:2] for i in nids], dtype=float)
+            except KeyError:
+                cst_face.append(float("nan"))
+                continue
+            if field == FieldType.UX:
+                cst_face.append(float(d[:, 0].mean()))
+            elif field == FieldType.UY:
+                cst_face.append(float(d[:, 1].mean()))
+            else:
+                cst_face.append(float(np.sqrt((d ** 2).sum(axis=1)).mean()))
+
+    # --- Quads (suave): Q6/MQ6IMod y Q4/Q6I/Q8 ---
+    for eid, ele in model.membrane_q3dof.items():
+        data = results.membrane_q3dof.get(eid)
+        if not data or "stresses" not in data or "strains" not in data:
+            continue
+        nids = [ele.node1.id, ele.node2.id, ele.node3.id, ele.node4.id]
+        quad_tris.append([index[nids[0]], index[nids[1]], index[nids[2]]])
+        quad_tris.append([index[nids[0]], index[nids[2]], index[nids[3]]])
+        _qvals(data, nids, quad_area(ele))
+    for eid, ele in model.membrane_q2dof.items():
+        data = results.membrane_q2dof.get(eid)
+        if not data or "stresses" not in data or "strains" not in data:
+            continue
+        nids = [ele.node1.id, ele.node2.id, ele.node3.id, ele.node4.id]
+        quad_tris.append([index[nids[0]], index[nids[1]], index[nids[2]]])
+        quad_tris.append([index[nids[0]], index[nids[2]], index[nids[3]]])
+        _qvals(data, nids, quad_area(ele))
+
+    quad_nodal = np.full(n, np.nan)
+    mask = qwacc > 0
+    quad_nodal[mask] = qacc[mask] / qwacc[mask]
+
+    if field in (FieldType.UX, FieldType.UY, FieldType.UMAG):
+        quad_nodal = np.full(n, np.nan)
+        for nid in node_ids:
+            try:
+                d = results.get_node_displacements(nid)[:2]
+            except KeyError:
+                continue
+            if field == FieldType.UX:
+                quad_nodal[index[nid]] = d[0]
+            elif field == FieldType.UY:
+                quad_nodal[index[nid]] = d[1]
+            else:
+                quad_nodal[index[nid]] = float(np.sqrt(d[0] ** 2 + d[1] ** 2))
+
+    return (
+        x, y,
+        np.asarray(cst_tris, dtype=int).reshape(-1, 3) if cst_tris else np.zeros((0, 3), dtype=int),
+        np.asarray(cst_face, dtype=float) if cst_face else np.zeros(0, dtype=float),
+        np.asarray(quad_tris, dtype=int).reshape(-1, 3) if quad_tris else np.zeros((0, 3), dtype=int),
+        quad_nodal,
+    )
