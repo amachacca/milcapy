@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from milcapy.model.model import SystemMilcaModel
     from milcapy.core.results import Results
 
-__all__ = ["nodal_field", "split_field", "supported_fields", "field_label"]
+__all__ = ["nodal_field", "split_field", "element_field_data", "supported_fields", "field_label"]
 
 _STRESS = {"SX": 0, "SY": 1, "SXY": 2}
 _STRAIN = {"EX": 0, "EY": 1, "EXY": 2}
@@ -301,3 +301,72 @@ def split_field(model: "SystemMilcaModel", pattern: str, field: FieldType):
         np.asarray(quad_tris, dtype=int).reshape(-1, 3) if quad_tris else np.zeros((0, 3), dtype=int),
         quad_nodal,
     )
+
+
+def _quad_phys(corner_xy: np.ndarray, xi: float, eta: float) -> tuple[float, float]:
+    """Posición física bilineal desde esquinas (evita element.coordinates roto en MQ6)."""
+    N = np.array([(1 - xi) * (1 - eta), (1 + xi) * (1 - eta),
+                  (1 + xi) * (1 + eta), (1 - xi) * (1 + eta)]) / 4.0
+    return float(N @ corner_xy[:, 0]), float(N @ corner_xy[:, 1])
+
+
+def element_field_data(model: "SystemMilcaModel", pattern: str, kind: str, ele_id: int) -> dict:
+    """Detalle por elemento para inspección: nodos + TODOS los puntos de Gauss.
+
+    Args:
+        kind: "cst" | "q3" (Q6/MQ6IMod) | "q2" (Q4/Q6I/Q8).
+    Returns:
+        dict con label, node_ids, node_xy (nn,2), strains_nodes/stresses_nodes
+        (nn,3), gauss: lista de {xi, eta, x, y, strains (3,), stresses (3,)},
+        ngauss, state, thickness.
+    """
+    if pattern not in model.results:
+        raise KeyError(f"Sin resultados para el patrón '{pattern}'")
+    results = model.results[pattern]
+    if kind == "cst":
+        ele = model.csts[ele_id]
+        data = results.CST[ele_id]
+        nodes = [ele.node1, ele.node2, ele.node3]
+        label = f"CST {ele_id}"
+    elif kind == "q3":
+        ele = model.membrane_q3dof[ele_id]
+        data = results.membrane_q3dof[ele_id]
+        nodes = [ele.node1, ele.node2, ele.node3, ele.node4]
+        label = f"Membrana Q3DOF {ele_id} ({type(ele).__name__})"
+    elif kind == "q2":
+        ele = model.membrane_q2dof[ele_id]
+        data = results.membrane_q2dof[ele_id]
+        nodes = [ele.node1, ele.node2, ele.node3, ele.node4]
+        label = f"Membrana Q2DOF {ele_id} ({type(ele).__name__})"
+    else:
+        raise ValueError(f"kind debe ser cst/q3/q2, recibido {kind!r}")
+
+    node_ids = [nd.id for nd in nodes]
+    node_xy = np.array([nd.vertex.coordinates for nd in nodes], dtype=float)
+    try:
+        node_disp = np.array([results.get_node_displacements(i)[:2] for i in node_ids], dtype=float)
+    except KeyError:
+        node_disp = np.full((len(node_ids), 2), np.nan)
+    strains_n = np.asarray(data.get("strains_nodes", data["strains"]), dtype=float).reshape(-1, 3)
+    stresses_n = np.asarray(data.get("stresses_nodes", data["stresses"]), dtype=float).reshape(-1, 3)
+
+    gauss = []
+    if kind == "cst":
+        cx, cy = node_xy.mean(axis=0)
+        e = np.asarray(data["strains"], dtype=float).ravel()[:3]
+        s = np.asarray(data["stresses"], dtype=float).ravel()[:3]
+        gauss.append({"xi": None, "eta": None, "x": float(cx), "y": float(cy),
+                      "strains": e, "stresses": s})
+    else:
+        corner_xy = node_xy[:4]
+        for i, (xi, eta) in enumerate(zip(np.asarray(ele.xi).ravel(), np.asarray(ele.eta).ravel())):
+            gx, gy = _quad_phys(corner_xy, float(xi), float(eta))
+            gauss.append({"xi": float(xi), "eta": float(eta), "x": gx, "y": gy,
+                          "strains": np.asarray(data["strains_gauss"][i], dtype=float).ravel()[:3],
+                          "stresses": np.asarray(data["stresses_gauss"][i], dtype=float).ravel()[:3]})
+    return {"label": label, "kind": kind, "ele_id": ele_id,
+            "node_ids": node_ids, "node_xy": node_xy, "node_disp": node_disp,
+            "strains_nodes": strains_n, "stresses_nodes": stresses_n,
+            "gauss": gauss, "ngauss": len(gauss),
+            "state": getattr(ele.state, "value", str(ele.state)),
+            "thickness": float(ele.section.t)}

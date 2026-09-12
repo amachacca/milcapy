@@ -202,3 +202,135 @@ def test_stress_layer_contour_and_flat_with_floating_colorbar():
     assert len(m.plotter.axes.child_axes) == 0
     assert len(m.plotter.figure.axes) == 1
     plt.close("all")
+
+
+def _gauss_model(kind):
+    """Modelo de tracción uniaxial con un solo elemento del tipo pedido."""
+    m = SystemModel()
+    m.add_material("c", E, V)
+    m.add_shell_section("s", "c", 0.2)
+    m.add_node(1, 0, 0)
+    m.add_node(2, 1, 0)
+    m.add_node(3, 1, 1)
+    m.add_node(4, 0, 1)
+    if kind == "cst":
+        m.add_cst(1, 1, 2, 3, "s")
+        m.add_cst(2, 1, 3, 4, "s")
+        ele = m.csts[1]
+    elif kind == "q4":
+        m.add_membrane_q4(1, 1, 2, 3, 4, "s")
+        ele = m.membrane_q2dof[1]
+    elif kind == "q6":
+        m.add_membrane_q6(1, 1, 2, 3, 4, "s")
+        ele = m.membrane_q3dof[1]
+    elif kind == "q6i":
+        m.add_membrane_q6i(1, 1, 2, 3, 4, "s")
+        ele = m.membrane_q2dof[1]
+    elif kind == "q8r":
+        m.add_membrane_q8(1, 1, 2, 3, 4, "s", integration="REDUCED")
+        ele = m.membrane_q2dof[1]
+    elif kind == "q8c":
+        m.add_membrane_q8(1, 1, 2, 3, 4, "s", integration="COMPLETE")
+        ele = m.membrane_q2dof[1]
+    elif kind == "q6mod":
+        m.add_membrane_q6i_mod(1, 1, 2, 3, 4, "s", ele_type="MQ4")
+        ele = m.membrane_q3dof[1]
+    for nid in (1, 2, 3, 4):
+        m.add_restraint(nid, True, False, True)
+    m.add_load_pattern("D")
+    m.add_prescribed_dof(1, "D", ux=0.0)
+    m.add_prescribed_dof(4, "D", ux=0.0)
+    m.add_prescribed_dof(2, "D", ux=EX_REF)
+    m.add_prescribed_dof(3, "D", ux=EX_REF)
+    m.solve()
+    return m, ele
+
+
+@pytest.mark.parametrize("kind,bucket,ng", [
+    ("cst", "cst", 1),
+    ("q4", "q2", 4),
+    ("q6", "q3", 4),
+    ("q6i", "q2", 4),
+    ("q8r", "q2", 4),
+    ("q8c", "q2", 9),
+    ("q6mod", "q3", 4),
+])
+def test_gauss_points_complete(kind, bucket, ng):
+    """Todos los puntos de Gauss calculados: 1/4/9 según integración."""
+    from milcapy.postprocess.field_service import element_field_data
+    m, ele = _gauss_model(kind)
+    if kind != "cst":
+        assert len(ele.xi) == len(ele.eta) == len(ele.w) == ng
+    d = element_field_data(m, "D", bucket, 1)
+    assert d["ngauss"] == ng == len(d["gauss"])
+    for g in d["gauss"]:
+        assert np.all(np.isfinite(g["strains"])) and np.all(np.isfinite(g["stresses"]))
+        assert set(g.keys()) == {"xi", "eta", "x", "y", "strains", "stresses"}
+    # coherencia con lo guardado en Results
+    r = m.get_results("D")
+    store = {"cst": r.CST, "q3": r.membrane_q3dof, "q2": r.membrane_q2dof}[bucket][1]
+    assert np.asarray(store["strains_gauss"]).shape == (ng, 3)
+    assert np.asarray(store["stresses_gauss"]).shape == (ng, 3)
+
+
+@pytest.mark.parametrize("kind,bucket", [
+    ("cst", "cst"), ("q4", "q2"), ("q6", "q3"), ("q6i", "q2"),
+])
+def test_gauss_values_exact_in_tension(kind, bucket):
+    """En tracción uniforme cada Gauss da SX=E·ex (formulaciones exactas)."""
+    from milcapy.postprocess.field_service import element_field_data
+    m, _ = _gauss_model(kind)
+    d = element_field_data(m, "D", bucket, 1)
+    for g in d["gauss"]:
+        assert g["stresses"][0] == pytest.approx(SX_REF, rel=1e-9)
+        assert g["stresses"][1] == pytest.approx(0.0, abs=1e-6)
+        assert g["stresses"][2] == pytest.approx(0.0, abs=1e-6)
+
+
+def test_element_field_data_errors_and_meta():
+    from milcapy.postprocess.field_service import element_field_data
+    m, _ = _gauss_model("q4")
+    with pytest.raises(KeyError):
+        element_field_data(m, "NOPE", "q2", 1)
+    with pytest.raises(ValueError):
+        element_field_data(m, "D", "frame", 1)
+    d = element_field_data(m, "D", "q2", 1)
+    assert d["node_ids"] == [1, 2, 3, 4]
+    assert d["node_xy"].shape == (4, 2) and d["node_disp"].shape == (4, 2)
+    assert d["strains_nodes"].shape == (4, 3) and d["stresses_nodes"].shape == (4, 3)
+    assert d["thickness"] == pytest.approx(0.2) and d["state"] == "PLANE_STRESS"
+
+
+def test_membrane_picking_uses_fill_not_edge():
+    """El picking debe activarse dentro del elemento, no en la arista."""
+    from matplotlib.backend_bases import MouseEvent
+    from matplotlib.patches import Polygon as MplPolygon
+    from milcapy.plotter.plotter import Plotter
+    from milcapy.plotter.plotter_values import PlotterValues
+    PlotterValues._static_data = None
+    m = SystemModel()
+    m.add_material("c", E, V)
+    m.add_shell_section("s", "c", 0.2)
+    m.add_node(1, 0, 0)
+    m.add_node(2, 1, 0)
+    m.add_node(3, 0, 1)
+    m.add_cst(1, 1, 2, 3, "s")
+    m.add_restraint(1, True, True, True)
+    m.add_load_pattern("D")
+    m.add_point_load(2, "D", fx=100.0)
+    m.solve()
+    m.plotter = Plotter(m)
+    m.plotter.initialize_plot()
+    m.plotter.figure.canvas.draw()
+    ax = m.plotter.axes
+    arts = m.plotter.csts[1]
+    fill = next(a for a in arts if isinstance(a, MplPolygon))
+
+    def at(x, y):
+        px, py = ax.transData.transform((x, y))
+        return MouseEvent("button_press_event", m.plotter.figure.canvas, px, py)
+
+    assert fill.contains(at(0.2, 0.2))[0] is True    # dentro
+    assert arts[0].contains(at(0.2, 0.2))[0] is False  # la arista ya no dispara
+    assert fill.contains(at(0.9, 0.9))[0] is False   # fuera
+    plt.close("all")

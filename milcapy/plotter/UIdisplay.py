@@ -282,49 +282,30 @@ class MatplotlibCanvas(QWidget):
                     self.model.plotter.figure.canvas.draw_idle()
                 return
 
-            # Membranas: clic derecho muestra tensiones nodales del elemento
+            # Membranas: clic derecho DENTRO del elemento abre el inspector
+            # (se usa el polígono de relleno, no la arista).
+            from matplotlib.patches import Polygon as _MplPolygon
+            from milcapy.postprocess.field_service import element_field_data
+            from milcapy.plotter.widgets import MembraneStressWidget
             for bucket, kind in (
                 (self.model.plotter.csts, "cst"),
                 (self.model.plotter.membrane_q3dof, "q3"),
                 (self.model.plotter.membrane_q2dof, "q2"),
             ):
                 for ele_id, artists in bucket.items():
-                    line = artists[0] if artists else None
-                    if line is None:
+                    if not artists:
                         continue
-                    contains, _ = line.contains(event)
+                    fill = next((a for a in artists if isinstance(a, _MplPolygon)), artists[0])
+                    contains, _ = fill.contains(event)
                     if contains:
-                        self.annotation.set_text(
-                            self._membrane_stress_text(kind, ele_id))
-                        self.annotation.xy = (event.xdata, event.ydata)
-                        self.annotation.set_visible(True)
+                        try:
+                            data = element_field_data(
+                                self.model, self.current_load_pattern, kind, ele_id)
+                        except (KeyError, ValueError):
+                            return
+                        MembraneStressWidget(data)
                         self.canvas.draw_idle()
                         return
-
-    def _membrane_stress_text(self, kind: str, ele_id: int) -> str:
-        """Texto de anotación con tensiones nodales promedio del elemento."""
-        decimals = self.plotter_options.disp_nodes_decimals
-        results = self.model.results[self.current_load_pattern]
-        try:
-            if kind == "cst":
-                s = np.asarray(results.get_cst_stresses(ele_id)).ravel()[:3]
-                e = np.asarray(results.get_cst_strains(ele_id)).ravel()[:3]
-                label = f"CST {ele_id}"
-            elif kind == "q3":
-                s = np.asarray(results.get_membrane_q3dof_stresses(ele_id)).reshape(-1, 3).mean(axis=0)
-                e = np.asarray(results.get_membrane_q3dof_strains(ele_id)).reshape(-1, 3).mean(axis=0)
-                label = f"Membrana Q3DOF {ele_id}"
-            else:
-                s = np.asarray(results.get_membrane_q2dof_stresses(ele_id)).reshape(-1, 3).mean(axis=0)
-                e = np.asarray(results.get_membrane_q2dof_strains(ele_id)).reshape(-1, 3).mean(axis=0)
-                label = f"Membrana Q2DOF {ele_id}"
-        except Exception:
-            return f"Elemento {ele_id}\n(sin resultados de esfuerzos)"
-        return (
-            f"{label}\n"
-            f"SX = {s[0]:.{decimals}f}\nSY = {s[1]:.{decimals}f}\nSXY = {s[2]:.{decimals}f}\n"
-            f"EX = {e[0]:.{decimals}f}\nEY = {e[1]:.{decimals}f}\nEXY = {e[2]:.{decimals}f}"
-        )
 
 
 class GraphicOptionsDialog(QDialog):

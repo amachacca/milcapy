@@ -192,6 +192,11 @@ class PostProcessing:   # para un solo load pattern
             stresses = calculator.stresses()
             self.results.set_cst_strains(id, strains)
             self.results.set_cst_stresses(id, stresses)
+            # Claves Gauss (1,3): en CST el único punto es el centroide
+            e = np.asarray(strains).ravel()[:3].reshape(1, 3)
+            s = np.asarray(stresses).ravel()[:3].reshape(1, 3)
+            self.results.CST[id]["strains_gauss"] = e
+            self.results.CST[id]["stresses_gauss"] = s
             # Réplica nodal (3,3) para consumo uniforme del FieldService
             self.results.CST[id]["strains_nodes"] = np.tile(np.asarray(strains).ravel()[:3], (3, 1))
             self.results.CST[id]["stresses_nodes"] = np.tile(np.asarray(stresses).ravel()[:3], (3, 1))

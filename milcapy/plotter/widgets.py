@@ -255,6 +255,211 @@ class InternalForceDiagramWidget:
             # Redibujar el canvas
             elements['canvas'].draw()
 
+
+class MembraneStressWidget:
+    """Ventana emergente para inspeccionar un elemento de membrana.
+
+    Muestra el campo activo sobre el elemento (selector con todos los tipos:
+    SX/SY/SXY/EX/EY/EXY/UX/UY/UMAG/VM/S1/S2), los valores nodales y la tabla
+    completa de valores en TODOS los puntos de Gauss del elemento.
+
+    Args:
+        data: dict de ``field_service.element_field_data``.
+    """
+    _active_instances = []
+    _max_instances = 1
+
+    _FIELDS = ["SX", "SY", "SXY", "EX", "EY", "EXY", "UX", "UY", "UMAG", "VM", "S1", "S2"]
+
+    def __init__(self, data: dict):
+        if len(MembraneStressWidget._active_instances) >= MembraneStressWidget._max_instances:
+            print(f"Máximo número de ventanas alcanzado ({MembraneStressWidget._max_instances}).")
+            return
+        self.data = data
+        self.field = "SX"
+        self.figures = []
+        self._cbar = None
+
+        self.root = tk.Tk()
+        self.root.geometry("720x780")
+        self.root.title(f"Esfuerzos en elemento de área — {data['label']}")
+        try:
+            self.root.iconbitmap("milcapy/plotter/assets/milca.ico")
+        except Exception:
+            pass
+        MembraneStressWidget._active_instances.append(self)
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+        top = ttk.Frame(self.root)
+        top.pack(fill=tk.X, padx=10, pady=6)
+        ttk.Label(top, text="Campo:", font=("Arial", 9)).pack(side=tk.LEFT)
+        self.field_var = tk.StringVar(value=self.field)
+        combo = ttk.Combobox(top, textvariable=self.field_var, values=self._FIELDS,
+                             state="readonly", width=8)
+        combo.pack(side=tk.LEFT, padx=8)
+        combo.bind("<<ComboboxSelected>>", self._on_field_change)
+        info = (f"nodos: {len(data['node_ids'])}   Gauss: {data['ngauss']}   "
+                f"{data.get('state', '')}   t={data.get('thickness', float('nan')):.4g}")
+        ttk.Label(top, text=info, font=("Arial", 8)).pack(side=tk.LEFT, padx=8)
+
+        self.fig = plt.figure(figsize=(6.4, 4.6))
+        self.figures.append(self.fig)
+        self.ax = self.fig.add_subplot(111)
+        canvas = FigureCanvasTkAgg(self.fig, master=self.root)
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=6)
+        self.canvas = canvas
+
+        tables = ttk.Frame(self.root)
+        tables.pack(fill=tk.BOTH, expand=False, padx=10, pady=6)
+        self.gauss_table = self._make_table(
+            tables, "Puntos de Gauss",
+            ("#", "xi", "eta", "x", "y", "SX", "SY", "SXY", "EX", "EY", "EXY"))
+        self._fill_gauss_table()
+        self.nodal_table = self._make_table(
+            tables, "Nodos del elemento",
+            ("nodo", "x", "y", "SX", "SY", "SXY", "EX", "EY", "EXY"))
+        self._fill_nodal_table()
+
+        self._draw()
+        self.root.mainloop()
+
+    # -- datos ----------------------------------------------------------
+    def _field_vectors(self, field: str):
+        """Vectores nodales y de Gauss para el campo dado."""
+        from milcapy.postprocess.membrane_pp import von_mises, principal_stresses
+
+        d = self.data
+        sn = np.asarray(d["stresses_nodes"], dtype=float).reshape(-1, 3)
+        en = np.asarray(d["strains_nodes"], dtype=float).reshape(-1, 3)
+        sg = np.array([np.asarray(g["stresses"], dtype=float).ravel()[:3] for g in d["gauss"]])
+        eg = np.array([np.asarray(g["strains"], dtype=float).ravel()[:3] for g in d["gauss"]])
+        comp = {"SX": 0, "SY": 1, "SXY": 2, "EX": 0, "EY": 1, "EXY": 2}
+        if field in ("SX", "SY", "SXY"):
+            return sn[:, comp[field]], sg[:, comp[field]]
+        if field in ("EX", "EY", "EXY"):
+            return en[:, comp[field]], eg[:, comp[field]]
+        if field in ("UX", "UY", "UMAG"):
+            disp = np.asarray(d.get("node_disp", np.full((len(d["node_ids"]), 2), np.nan)), dtype=float)
+            if field == "UX":
+                nodal = disp[:, 0]
+            elif field == "UY":
+                nodal = disp[:, 1]
+            else:
+                nodal = np.sqrt((disp ** 2).sum(axis=1))
+            return nodal, np.full(len(d["gauss"]), np.nan)
+        out_n = np.array([von_mises(*r) if field == "VM"
+                          else principal_stresses(*r)[0 if field == "S1" else 1] for r in sn])
+        out_g = np.array([von_mises(*r) if field == "VM"
+                          else principal_stresses(*r)[0 if field == "S1" else 1] for r in sg])
+        return out_n, out_g
+
+    @staticmethod
+    def _fmtval(v) -> str:
+        try:
+            f = float(v)
+        except Exception:
+            return "—"
+        return f"{f:.4g}" if np.isfinite(f) else "—"
+
+    # -- dibujo ---------------------------------------------------------
+    def _draw(self):
+        import matplotlib.tri as tri
+
+        d = self.data
+        nodal, gvals = self._field_vectors(self.field)
+        if self._cbar is not None:
+            try:
+                self._cbar.remove()
+            except Exception:
+                pass
+            self._cbar = None
+        self.ax.clear()
+        xy = np.asarray(d["node_xy"], dtype=float)
+        nn = xy.shape[0]
+        if not np.any(np.isfinite(nodal)):
+            self.ax.fill(list(xy[:, 0]) + [xy[0, 0]], list(xy[:, 1]) + [xy[0, 1]],
+                         color="lightgray")
+        elif nn == 3:
+            tris = np.array([[0, 1, 2]])
+            self.ax.tripcolor(xy[:, 0], xy[:, 1], tris, [float(np.mean(nodal))],
+                              shading="flat", cmap="jet")
+        else:
+            tris = np.array([[0, 1, 2], [0, 2, 3]])
+            self.ax.tripcolor(tri.Triangulation(xy[:, 0], xy[:, 1], tris), nodal,
+                              shading="gouraud", cmap="jet")
+        self.ax.plot(list(xy[:, 0]) + [xy[0, 0]], list(xy[:, 1]) + [xy[0, 1]],
+                     color="black", linewidth=1.2)
+        for k, nid in enumerate(d["node_ids"]):
+            self.ax.plot(xy[k, 0], xy[k, 1], "o", color="blue", markersize=5)
+            self.ax.annotate(f"N{nid}\n{self._fmtval(nodal[k])}", (xy[k, 0], xy[k, 1]),
+                             fontsize=8, color="blue", ha="center", va="bottom")
+        for k, g in enumerate(d["gauss"]):
+            self.ax.plot(g["x"], g["y"], "x", color="red", markersize=8, markeredgewidth=2)
+            self.ax.annotate(f"G{k + 1}\n{self._fmtval(gvals[k])}", (g["x"], g["y"]),
+                             fontsize=8, color="red", ha="center", va="top")
+        self.ax.set_title(f"{d['label']} — {self.field} (Gauss: {d['ngauss']})")
+        self.ax.set_aspect("equal", adjustable="datalim")
+        self._cbar = self.fig.colorbar(self.ax.collections[0], ax=self.ax, label=self.field,
+                                       fraction=0.046, pad=0.04)
+        self.canvas.draw()
+
+    def _on_field_change(self, _event=None):
+        self.field = self.field_var.get()
+        self._draw()
+
+    # -- tablas ---------------------------------------------------------
+    def _make_table(self, parent, title, columns):
+        frame = ttk.LabelFrame(parent, text=title)
+        frame.pack(fill=tk.X, pady=4)
+        tree = ttk.Treeview(frame, columns=columns, show="headings", height=min(max(len(columns) - 4, 3), 9))
+        for c in columns:
+            tree.heading(c, text=c)
+            tree.column(c, width=70 if c not in ("#", "nodo") else 50, anchor="e")
+        tree.pack(fill=tk.X)
+        return tree
+
+    @staticmethod
+    def _fmt(v) -> str:
+        try:
+            return f"{float(v):.6g}"
+        except Exception:
+            return "—"
+
+    def _fill_gauss_table(self):
+        for k, g in enumerate(self.data["gauss"]):
+            s = np.asarray(g["stresses"], dtype=float).ravel()[:3]
+            e = np.asarray(g["strains"], dtype=float).ravel()[:3]
+            xi = self._fmt(g["xi"]) if g["xi"] is not None else "c"
+            eta = self._fmt(g["eta"]) if g["eta"] is not None else "c"
+            self.gauss_table.insert("", tk.END, values=(
+                k + 1, xi, eta, self._fmt(g["x"]), self._fmt(g["y"]),
+                self._fmt(s[0]), self._fmt(s[1]), self._fmt(s[2]),
+                self._fmt(e[0]), self._fmt(e[1]), self._fmt(e[2])))
+
+    def _fill_nodal_table(self):
+        sn = np.asarray(self.data["stresses_nodes"], dtype=float).reshape(-1, 3)
+        en = np.asarray(self.data["strains_nodes"], dtype=float).reshape(-1, 3)
+        for nid, (x, y), s, e in zip(self.data["node_ids"], self.data["node_xy"], sn, en):
+            self.nodal_table.insert("", tk.END, values=(
+                nid, self._fmt(x), self._fmt(y),
+                self._fmt(s[0]), self._fmt(s[1]), self._fmt(s[2]),
+                self._fmt(e[0]), self._fmt(e[1]), self._fmt(e[2])))
+
+    def on_closing(self):
+        try:
+            MembraneStressWidget._active_instances.remove(self)
+        except ValueError:
+            pass
+        for fig in self.figures:
+            try:
+                plt.close(fig)
+            except Exception:
+                pass
+        try:
+            self.root.destroy()
+        except Exception:
+            pass
+
     def create_grid_layout(self):
         """
         Configura la disposición en cuadrícula de los elementos de la interfaz.
