@@ -259,9 +259,11 @@ class InternalForceDiagramWidget:
 class MembraneStressWidget:
     """Ventana emergente para inspeccionar un elemento de membrana.
 
-    Muestra el campo activo sobre el elemento (selector con todos los tipos:
-    SX/SY/SXY/EX/EY/EXY/UX/UY/UMAG/VM/S1/S2), los valores nodales y la tabla
-    completa de valores en TODOS los puntos de Gauss del elemento.
+    Pestaña Gráfico: campo activo en contour (selector con todos los tipos:
+    SX/SY/SXY/EX/EY/EXY/UX/UY/UMAG/VM/S1/S2), colormap y niveles
+    configurables, valores nodales y de Gauss anotados, lectura del valor
+    bajo el cursor (hover) y resumen Min/Max.
+    Pestañas Gauss/Nodos: tablas completas de valores.
 
     Args:
         data: dict de ``field_service.element_field_data``.
@@ -270,6 +272,8 @@ class MembraneStressWidget:
     _max_instances = 1
 
     _FIELDS = ["SX", "SY", "SXY", "EX", "EY", "EXY", "UX", "UY", "UMAG", "VM", "S1", "S2"]
+    _CMAPS = ["jet", "viridis", "plasma", "coolwarm", "turbo"]
+    _LEVELS = ["8", "10", "12", "14", "16", "20", "24", "30"]
 
     def __init__(self, data: dict):
         if len(MembraneStressWidget._active_instances) >= MembraneStressWidget._max_instances:
@@ -277,11 +281,17 @@ class MembraneStressWidget:
             return
         self.data = data
         self.field = "SX"
+        self.cmap = "jet"
+        self.levels = 14
+        self.show_gauss = True
+        self.show_nodes = True
         self.figures = []
         self._cbar = None
+        self._tri = None
+        self._nodal_plot = None
 
         self.root = tk.Tk()
-        self.root.geometry("720x780")
+        self.root.geometry("760x820")
         self.root.title(f"Esfuerzos en elemento de área — {data['label']}")
         try:
             self.root.iconbitmap("milcapy/plotter/assets/milca.ico")
@@ -290,34 +300,66 @@ class MembraneStressWidget:
         MembraneStressWidget._active_instances.append(self)
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
-        top = ttk.Frame(self.root)
-        top.pack(fill=tk.X, padx=10, pady=6)
-        ttk.Label(top, text="Campo:", font=("Arial", 9)).pack(side=tk.LEFT)
+        ctrl = ttk.Frame(self.root)
+        ctrl.pack(fill=tk.X, padx=10, pady=6)
+        ttk.Label(ctrl, text="Campo:", font=("Arial", 9)).pack(side=tk.LEFT)
         self.field_var = tk.StringVar(value=self.field)
-        combo = ttk.Combobox(top, textvariable=self.field_var, values=self._FIELDS,
-                             state="readonly", width=8)
-        combo.pack(side=tk.LEFT, padx=8)
-        combo.bind("<<ComboboxSelected>>", self._on_field_change)
-        info = (f"nodos: {len(data['node_ids'])}   Gauss: {data['ngauss']}   "
-                f"{data.get('state', '')}   t={data.get('thickness', float('nan')):.4g}")
-        ttk.Label(top, text=info, font=("Arial", 8)).pack(side=tk.LEFT, padx=8)
+        combo = ttk.Combobox(ctrl, textvariable=self.field_var, values=self._FIELDS,
+                             state="readonly", width=7)
+        combo.pack(side=tk.LEFT, padx=6)
+        combo.bind("<<ComboboxSelected>>", self._on_option_change)
+        ttk.Label(ctrl, text="Mapa:", font=("Arial", 9)).pack(side=tk.LEFT)
+        self.cmap_var = tk.StringVar(value=self.cmap)
+        cmap_combo = ttk.Combobox(ctrl, textvariable=self.cmap_var, values=self._CMAPS,
+                                  state="readonly", width=9)
+        cmap_combo.pack(side=tk.LEFT, padx=6)
+        cmap_combo.bind("<<ComboboxSelected>>", self._on_option_change)
+        ttk.Label(ctrl, text="Niveles:", font=("Arial", 9)).pack(side=tk.LEFT)
+        self.levels_var = tk.StringVar(value=str(self.levels))
+        levels_combo = ttk.Combobox(ctrl, textvariable=self.levels_var, values=self._LEVELS,
+                                    state="readonly", width=4)
+        levels_combo.pack(side=tk.LEFT, padx=6)
+        levels_combo.bind("<<ComboboxSelected>>", self._on_option_change)
+        self.gauss_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(ctrl, text="Gauss", variable=self.gauss_var,
+                        command=self._on_option_change).pack(side=tk.LEFT, padx=4)
+        self.nodes_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(ctrl, text="Nodos", variable=self.nodes_var,
+                        command=self._on_option_change).pack(side=tk.LEFT, padx=4)
+        info = (f"{data['label']}   nodos: {len(data['node_ids'])}   "
+                f"Gauss: {data['ngauss']}   {data.get('state', '')}   "
+                f"t={data.get('thickness', float('nan')):.4g}")
+        ttk.Label(self.root, text=info, font=("Arial", 8)).pack(anchor="w", padx=10)
+        self.minmax_label = ttk.Label(self.root, text="", font=("Arial", 9, "bold"),
+                                      foreground="darkblue")
+        self.minmax_label.pack(anchor="w", padx=10)
 
-        self.fig = plt.figure(figsize=(6.4, 4.6))
+        nb = ttk.Notebook(self.root)
+        nb.pack(fill=tk.BOTH, expand=True, padx=6, pady=4)
+        tab_graph = ttk.Frame(nb)
+        tab_gauss = ttk.Frame(nb)
+        tab_nodal = ttk.Frame(nb)
+        nb.add(tab_graph, text="Gráfico")
+        nb.add(tab_gauss, text="Puntos de Gauss")
+        nb.add(tab_nodal, text="Nodos")
+
+        self.fig = plt.figure(figsize=(6.6, 4.8))
         self.figures.append(self.fig)
         self.ax = self.fig.add_subplot(111)
-        canvas = FigureCanvasTkAgg(self.fig, master=self.root)
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=6)
+        canvas = FigureCanvasTkAgg(self.fig, master=tab_graph)
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
         self.canvas = canvas
+        self.fig.canvas.mpl_connect("motion_notify_event", self._on_hover)
+        self.status_label = ttk.Label(tab_graph, text="—", font=("Arial", 8))
+        self.status_label.pack(anchor="w", padx=4)
 
-        tables = ttk.Frame(self.root)
-        tables.pack(fill=tk.BOTH, expand=False, padx=10, pady=6)
         self.gauss_table = self._make_table(
-            tables, "Puntos de Gauss",
-            ("#", "xi", "eta", "x", "y", "SX", "SY", "SXY", "EX", "EY", "EXY"))
+            tab_gauss, "Puntos de Gauss (todos los calculados)",
+            ("#", "xi", "eta", "x", "y", "SX", "SY", "SXY", "EX", "EY", "EXY", "VM"))
         self._fill_gauss_table()
         self.nodal_table = self._make_table(
-            tables, "Nodos del elemento",
-            ("nodo", "x", "y", "SX", "SY", "SXY", "EX", "EY", "EXY"))
+            tab_nodal, "Nodos del elemento",
+            ("nodo", "x", "y", "SX", "SY", "SXY", "EX", "EY", "EXY", "VM"))
         self._fill_nodal_table()
 
         self._draw()
@@ -364,6 +406,7 @@ class MembraneStressWidget:
     # -- dibujo ---------------------------------------------------------
     def _draw(self):
         import matplotlib.tri as tri
+        from matplotlib.colors import Normalize
 
         d = self.data
         nodal, gvals = self._field_vectors(self.field)
@@ -373,39 +416,94 @@ class MembraneStressWidget:
             except Exception:
                 pass
             self._cbar = None
+        if getattr(self, "_cax", None) is not None:
+            try:
+                self._cax.remove()
+            except Exception:
+                pass
+            self._cax = None
         self.ax.clear()
+        self._tri = None
+        self._nodal_plot = None
         xy = np.asarray(d["node_xy"], dtype=float)
         nn = xy.shape[0]
-        if not np.any(np.isfinite(nodal)):
+        tris = np.array([[0, 1, 2]]) if nn == 3 else np.array([[0, 1, 2], [0, 2, 3]])
+        vals = np.asarray(nodal, dtype=float)
+        if np.any(np.isfinite(vals)) and np.any(np.isfinite(gvals)):
+            lo = float(np.min([vals[np.isfinite(vals)].min(), gvals[np.isfinite(gvals)].min()]))
+            hi = float(np.max([vals[np.isfinite(vals)].max(), gvals[np.isfinite(gvals)].max()]))
+        elif np.any(np.isfinite(vals)):
+            lo, hi = float(vals[np.isfinite(vals)].min()), float(vals[np.isfinite(vals)].max())
+        elif np.any(np.isfinite(gvals)):
+            lo, hi = float(gvals[np.isfinite(gvals)].min()), float(gvals[np.isfinite(gvals)].max())
+        else:
+            lo, hi = 0.0, 1.0
+        if hi - lo <= 0:
+            eps = max(abs(hi) * 1e-9, 1e-12)
+            lo, hi = lo - eps, hi + eps
+        norm = Normalize(vmin=lo, vmax=hi)
+        if np.any(np.isfinite(vals)):
+            triangulation = tri.Triangulation(xy[:, 0], xy[:, 1], tris)
+            triangulation.set_mask([bool(np.any(~np.isfinite(vals[t]))) for t in tris])
+            self.ax.tricontourf(triangulation, vals, levels=self.levels,
+                                cmap=self.cmap, norm=norm)
+            self._tri = triangulation
+            self._nodal_plot = np.asarray(vals, dtype=float)
+        else:
             self.ax.fill(list(xy[:, 0]) + [xy[0, 0]], list(xy[:, 1]) + [xy[0, 1]],
                          color="lightgray")
-        elif nn == 3:
-            tris = np.array([[0, 1, 2]])
-            self.ax.tripcolor(xy[:, 0], xy[:, 1], tris, [float(np.mean(nodal))],
-                              shading="flat", cmap="jet")
-        else:
-            tris = np.array([[0, 1, 2], [0, 2, 3]])
-            self.ax.tripcolor(tri.Triangulation(xy[:, 0], xy[:, 1], tris), nodal,
-                              shading="gouraud", cmap="jet")
         self.ax.plot(list(xy[:, 0]) + [xy[0, 0]], list(xy[:, 1]) + [xy[0, 1]],
                      color="black", linewidth=1.2)
-        for k, nid in enumerate(d["node_ids"]):
-            self.ax.plot(xy[k, 0], xy[k, 1], "o", color="blue", markersize=5)
-            self.ax.annotate(f"N{nid}\n{self._fmtval(nodal[k])}", (xy[k, 0], xy[k, 1]),
-                             fontsize=8, color="blue", ha="center", va="bottom")
-        for k, g in enumerate(d["gauss"]):
-            self.ax.plot(g["x"], g["y"], "x", color="red", markersize=8, markeredgewidth=2)
-            self.ax.annotate(f"G{k + 1}\n{self._fmtval(gvals[k])}", (g["x"], g["y"]),
-                             fontsize=8, color="red", ha="center", va="top")
+        if self.show_nodes:
+            for k, nid in enumerate(d["node_ids"]):
+                self.ax.plot(xy[k, 0], xy[k, 1], "o", color="blue", markersize=5)
+                self.ax.annotate(f"N{nid}\n{self._fmtval(vals[k])}", (xy[k, 0], xy[k, 1]),
+                                 fontsize=8, color="blue", ha="center", va="bottom")
+        if self.show_gauss:
+            for k, g in enumerate(d["gauss"]):
+                self.ax.plot(g["x"], g["y"], "x", color="red", markersize=8, markeredgewidth=2)
+                self.ax.annotate(f"G{k + 1}\n{self._fmtval(gvals[k])}", (g["x"], g["y"]),
+                                 fontsize=8, color="red", ha="center", va="top")
         self.ax.set_title(f"{d['label']} — {self.field} (Gauss: {d['ngauss']})")
         self.ax.set_aspect("equal", adjustable="datalim")
-        self._cbar = self.fig.colorbar(self.ax.collections[0], ax=self.ax, label=self.field,
-                                       fraction=0.046, pad=0.04)
+        cax = self.ax.inset_axes([0.88, 0.12, 0.035, 0.76])
+        self._cax = cax
+        self._cbar = self.fig.colorbar(
+            self.ax.collections[0] if self.ax.collections else
+            plt.cm.ScalarMappable(norm=norm, cmap=self.cmap),
+            cax=cax, label=self.field)
+        self.minmax_label.configure(text=f"Min = {lo:.6g}    Max = {hi:.6g}")
         self.canvas.draw()
 
-    def _on_field_change(self, _event=None):
+    def _on_option_change(self, _event=None):
+        try:
+            self.levels = max(2, min(30, int(self.levels_var.get())))
+        except (ValueError, AttributeError):
+            pass
         self.field = self.field_var.get()
+        self.cmap = self.cmap_var.get()
+        self.show_gauss = bool(self.gauss_var.get())
+        self.show_nodes = bool(self.nodes_var.get())
         self._draw()
+
+    def _on_field_change(self, _event=None):
+        self._on_option_change(_event)
+
+    def _on_hover(self, event):
+        """Lectura del valor del campo bajo el cursor."""
+        if event.inaxes is not self.ax or self._tri is None or self._nodal_plot is None:
+            return
+        try:
+            from matplotlib.tri import LinearTriInterpolator
+            val = LinearTriInterpolator(self._tri, self._nodal_plot)(event.xdata, event.ydata)
+            val = float(np.ma.filled(val, np.nan))
+        except Exception:
+            val = float("nan")
+        if np.isfinite(val):
+            self.status_label.configure(
+                text=f"x={event.xdata:.4g}  y={event.ydata:.4g}  {self.field}={val:.6g}")
+        else:
+            self.status_label.configure(text="—")
 
     # -- tablas ---------------------------------------------------------
     def _make_table(self, parent, title, columns):
@@ -426,6 +524,7 @@ class MembraneStressWidget:
             return "—"
 
     def _fill_gauss_table(self):
+        from milcapy.postprocess.membrane_pp import von_mises
         for k, g in enumerate(self.data["gauss"]):
             s = np.asarray(g["stresses"], dtype=float).ravel()[:3]
             e = np.asarray(g["strains"], dtype=float).ravel()[:3]
@@ -434,16 +533,19 @@ class MembraneStressWidget:
             self.gauss_table.insert("", tk.END, values=(
                 k + 1, xi, eta, self._fmt(g["x"]), self._fmt(g["y"]),
                 self._fmt(s[0]), self._fmt(s[1]), self._fmt(s[2]),
-                self._fmt(e[0]), self._fmt(e[1]), self._fmt(e[2])))
+                self._fmt(e[0]), self._fmt(e[1]), self._fmt(e[2]),
+                self._fmt(von_mises(*s))))
 
     def _fill_nodal_table(self):
+        from milcapy.postprocess.membrane_pp import von_mises
         sn = np.asarray(self.data["stresses_nodes"], dtype=float).reshape(-1, 3)
         en = np.asarray(self.data["strains_nodes"], dtype=float).reshape(-1, 3)
         for nid, (x, y), s, e in zip(self.data["node_ids"], self.data["node_xy"], sn, en):
             self.nodal_table.insert("", tk.END, values=(
                 nid, self._fmt(x), self._fmt(y),
                 self._fmt(s[0]), self._fmt(s[1]), self._fmt(s[2]),
-                self._fmt(e[0]), self._fmt(e[1]), self._fmt(e[2])))
+                self._fmt(e[0]), self._fmt(e[1]), self._fmt(e[2]),
+                self._fmt(von_mises(*s))))
 
     def on_closing(self):
         try:
