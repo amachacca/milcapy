@@ -328,6 +328,44 @@ def test_element_field_data_errors_and_meta():
     assert d["thickness"] == pytest.approx(0.2) and d["state"] == "PLANE_STRESS"
 
 
+def test_1d_diagram_widget_builds():
+    """Regresión: el popup de barras 1D debe construirse (create_grid_layout)."""
+    import matplotlib
+    tk = pytest.importorskip("tkinter")
+    try:
+        root_probe = tk.Tk()
+        root_probe.withdraw()
+    except tk.TclError:
+        pytest.skip("sin display para Tk")
+        return
+    root_probe.destroy()
+    patched = False
+    try:
+        tk.Tk.mainloop = lambda self: None
+        patched = True
+        from milcapy.plotter.widgets import DiagramConfig, InternalForceDiagramWidget
+        m = SystemModel()
+        m.add_material("c", E, V)
+        m.add_rectangular_section("v", "c", 0.3, 0.5)
+        m.add_node(1, 0, 0)
+        m.add_node(2, 5, 0)
+        m.add_member(1, 1, 2, "v")
+        m.add_restraint(1, True, True, True)
+        m.add_load_pattern("D")
+        m.add_point_load(2, "D", fy=-10)
+        m.solve()
+        r = m.get_results("D")
+        w = InternalForceDiagramWidget(
+            m.members[1],
+            {"N(x)": DiagramConfig("Axial", r.get_member_axial_force(1))},
+            r.get_member_x_val(1))
+        assert "N(x)" in w.interactive_elements
+        w.on_closing()
+    finally:
+        if patched:
+            del tk.Tk.mainloop  # restaura el mainloop original heredado
+
+
 def test_membrane_picking_uses_fill_not_edge():
     """El picking debe activarse dentro del elemento, no en la arista."""
     from matplotlib.backend_bases import MouseEvent
