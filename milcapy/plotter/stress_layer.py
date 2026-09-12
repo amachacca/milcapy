@@ -5,10 +5,9 @@
 actual) a artists matplotlib. El cálculo vive en
 ``PlotterValues.nodal_field`` / ``field_service``; aquí solo dibujo.
 
-Dibujo:
-  - Quads (Q4/Q6/Q6I/Q8): ``tricontourf`` (contour suave, niveles configurables).
-  - CST: ``tripcolor`` plano, un solo color por triángulo (constant strain).
-  - Colorbar única flotante dentro del canvas (inset axes), norma compartida.
+Dibujo: ``tricontourf`` continuo sobre la malla unificada (triángulos CST +
+quads divididos) con valores nodales promediados ponderados por área.
+Colorbar única flotante dentro del canvas (inset axes).
 
 Se dibuja bajo demanda para el patrón actual (``show``) y se retira con
 ``hide``. No se pre-construye por patrón: el campo puede cambiar sin
@@ -66,48 +65,29 @@ class StressLayer:
         self.hide(draw=False)
         model = plotter.model
         pattern = plotter.current_load_pattern
-        x, y, cst_tris, cst_face, quad_tris, quad_nodal = split_field(model, pattern, field)
+        x, y, tris, nodal = split_field(model, pattern, field)
 
-        fin_cst = cst_face[np.isfinite(cst_face)] if cst_face.size else np.zeros(0)
-        fin_quad = quad_nodal[np.isfinite(quad_nodal)] if quad_nodal.size else np.zeros(0)
-        if fin_cst.size + fin_quad.size == 0:
+        finite = np.asarray(nodal, dtype=float)
+        finite = finite[np.isfinite(finite)]
+        if tris.shape[0] == 0 or finite.size == 0:
             plotter.figure.canvas.draw_idle()
             return False
-        vmin = float(min(fin_cst.min() if fin_cst.size else np.inf,
-                         fin_quad.min() if fin_quad.size else np.inf))
-        vmax = float(max(fin_cst.max() if fin_cst.size else -np.inf,
-                         fin_quad.max() if fin_quad.size else -np.inf))
-        if not np.isfinite(vmin) or not np.isfinite(vmax):
-            plotter.figure.canvas.draw_idle()
-            return False
+        vmin, vmax = float(finite.min()), float(finite.max())
         if vmax - vmin <= 0:
             eps = max(abs(vmax) * 1e-9, 1e-12)
             vmin, vmax = vmin - eps, vmax + eps
         norm = Normalize(vmin=vmin, vmax=vmax)
         alpha = float(getattr(options, "stress_alpha", 0.8))
 
-        mappable = None
-        # Quads: contour suave
-        if quad_tris.shape[0] > 0 and np.any(np.isfinite(quad_nodal)):
-            qmask = [bool(np.any(~np.isfinite(quad_nodal[t]))) for t in quad_tris]
-            triangulation = tri.Triangulation(
-                np.asarray(x, dtype=float), np.asarray(y, dtype=float), quad_tris)
-            triangulation.set_mask(qmask)
-            cs = plotter.axes.tricontourf(
-                triangulation, np.asarray(quad_nodal, dtype=float),
-                levels=levels, cmap=cmap, norm=norm, alpha=alpha, zorder=2)
-            self._artists.append(cs)
-            mappable = cs
-        # CST: un color plano por elemento (constant strain)
-        if cst_tris.shape[0] > 0 and np.any(np.isfinite(cst_face)):
-            masked_face = np.ma.masked_invalid(np.asarray(cst_face, dtype=float))
-            coll = plotter.axes.tripcolor(
-                np.asarray(x, dtype=float), np.asarray(y, dtype=float),
-                np.asarray(cst_tris, dtype=int), facecolors=masked_face,
-                shading="flat", cmap=cmap, norm=norm, alpha=alpha, zorder=2)
-            self._artists.append(coll)
-            if mappable is None:
-                mappable = coll
+        mask = [bool(np.any(~np.isfinite(nodal[t]))) for t in tris]
+        triangulation = tri.Triangulation(
+            np.asarray(x, dtype=float), np.asarray(y, dtype=float), tris)
+        triangulation.set_mask(mask)
+        cs = plotter.axes.tricontourf(
+            triangulation, np.asarray(nodal, dtype=float),
+            levels=levels, cmap=cmap, norm=norm, alpha=alpha, zorder=2)
+        self._artists.append(cs)
+        mappable = cs
 
         # Colorbar flotante dentro del canvas
         self._cax = plotter.axes.inset_axes([0.88, 0.12, 0.035, 0.76])
