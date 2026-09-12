@@ -1,4 +1,4 @@
-from milcapy import SystemModel, ConstitutiveModel
+from milcapy import SystemModel, ConstitutiveModelType
 
 E = 2e6
 v = 0.3
@@ -8,7 +8,7 @@ l = 2.4
 t = 0.4
 sec = [0.4, 0.4]
 F = 100
-STATE = ConstitutiveModel.PLANE_STRAIN
+STATE = ConstitutiveModelType.PLANE_STRAIN
 
 wallPortal = SystemModel()
 wallPortal.add_material("concreto", E, v)
